@@ -85,26 +85,51 @@ export default function Home() {
   const [isResolvingAi, setIsResolvingAi] = useState(false);
   const [aiAnalysisLog, setAiAnalysisLog] = useState<string | null>(null);
 
-  // Check if wallet is already connected on mount
+  // Load escrows from localStorage and check wallet connection on mount
   useEffect(() => {
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      (window as any).ethereum.request({ method: "eth_accounts" })
-        .then((accounts: string[]) => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("genlayer_escrows");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setEscrows(parsed);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to parse saved escrows", err);
+      }
+
+      if ((window as any).ethereum) {
+        (window as any).ethereum.request({ method: "eth_accounts" })
+          .then((accounts: string[]) => {
+            if (accounts.length > 0) {
+              setAccount(accounts[0]);
+            }
+          })
+          .catch((err: any) => console.error("Error fetching accounts", err));
+
+        (window as any).ethereum.on("accountsChanged", (accounts: string[]) => {
           if (accounts.length > 0) {
             setAccount(accounts[0]);
+          } else {
+            setAccount(null);
           }
-        })
-        .catch((err: any) => console.error("Error fetching accounts", err));
-
-      (window as any).ethereum.on("accountsChanged", (accounts: string[]) => {
-        if (accounts.length > 0) {
-          setAccount(accounts[0]);
-        } else {
-          setAccount(null);
-        }
-      });
+        });
+      }
     }
   }, []);
+
+  // Persist escrows to localStorage whenever they update
+  useEffect(() => {
+    if (typeof window !== "undefined" && escrows.length > 0) {
+      try {
+        localStorage.setItem("genlayer_escrows", JSON.stringify(escrows));
+      } catch (err) {
+        console.error("Failed to save escrows to localStorage", err);
+      }
+    }
+  }, [escrows]);
 
   // Connect Web3 Wallet
   const connectWallet = async () => {
