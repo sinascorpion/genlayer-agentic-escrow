@@ -85,7 +85,34 @@ export default function Home() {
   const [isResolvingAi, setIsResolvingAi] = useState(false);
   const [aiAnalysisLog, setAiAnalysisLog] = useState<string | null>(null);
 
-  // Load escrows from localStorage and check wallet connection on mount
+  // Sync escrows across different browsers and devices via /api/escrows and localStorage
+  const syncWithServer = async () => {
+    try {
+      const res = await fetch("/api/escrows");
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.escrows) && data.escrows.length > 0) {
+          setEscrows((prev) => {
+            // Merge server escrows with local, prioritizing server state
+            const map = new Map<number, EscrowRecord>();
+            data.escrows.forEach((e: EscrowRecord) => map.set(e.id, e));
+            prev.forEach((e: EscrowRecord) => {
+              if (!map.has(e.id)) map.set(e.id, e);
+            });
+            const merged = Array.from(map.values()).sort((a, b) => b.id - a.id);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("genlayer_escrows", JSON.stringify(merged));
+            }
+            return merged;
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to sync escrows with server", err);
+    }
+  };
+
+  // Load escrows and check wallet connection on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
@@ -94,11 +121,21 @@ export default function Home() {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setEscrows(parsed);
+            // Push locally saved to server
+            fetch("/api/escrows", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ escrows: parsed })
+            }).catch(() => {});
           }
         }
       } catch (err) {
         console.error("Failed to parse saved escrows", err);
       }
+
+      // Initial server sync and recurring poll every 3 seconds
+      syncWithServer();
+      const interval = setInterval(syncWithServer, 3000);
 
       if ((window as any).ethereum) {
         (window as any).ethereum.request({ method: "eth_accounts" })
@@ -117,10 +154,12 @@ export default function Home() {
           }
         });
       }
+
+      return () => clearInterval(interval);
     }
   }, []);
 
-  // Persist escrows to localStorage whenever they update
+  // Persist escrows to localStorage and broadcast to /api/escrows whenever they update
   useEffect(() => {
     if (typeof window !== "undefined" && escrows.length > 0) {
       try {
@@ -128,6 +167,13 @@ export default function Home() {
       } catch (err) {
         console.error("Failed to save escrows to localStorage", err);
       }
+
+      // Notify server so other browsers pick it up
+      fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escrows })
+      }).catch(() => {});
     }
   }, [escrows]);
 
