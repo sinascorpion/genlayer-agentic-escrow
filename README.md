@@ -3,7 +3,7 @@
 > **Autonomous AI-Powered Judicial Dispute Resolution and Trustless Escrow Protocol on GenLayer**
 
 [![Live DApp](https://img.shields.io/badge/Live%20DApp-agenticescrow.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://agenticescrow.vercel.app)
-[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0xF9E1...ad52-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/contracts/0xF9E1daf7be50c5b7e20a3811519c02064ae6ad52)
+[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0xF9E1...ad52-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0xF9E1daf7be50c5b7e20a3811519c02064ae6ad52)
 [![Network](https://img.shields.io/badge/GenLayer-Bradbury%20Testnet%20(4221)-8b5cf6?style=for-the-badge)](https://genlayer.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -106,12 +106,12 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 | Parameter | Value |
 | :--- | :--- |
 | **Live Web App** | [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app) |
-| **Intelligent Contract Address** | [`0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52`](https://explorer-bradbury.genlayer.com/contracts/0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52) |
+| **Intelligent Contract Address** | [`0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52`](https://explorer-bradbury.genlayer.com/address/0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52) |
 | **Deployment Transaction** | [`0x028dff8894e5f773db9a8108b155fc4e797f2d31f2df4cf74f48ba4825141b47`](https://explorer-bradbury.genlayer.com) |
 | **Network Name** | GenLayer Bradbury Testnet |
 | **Chain ID** | 4221 (0x107d) |
 | **RPC Endpoint** | https://rpc-bradbury.genlayer.com |
-| **Explorer** | [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com) |
+| **Explorer** | [https://explorer-bradbury.genlayer.com/tx/0x028dff8894e5f773db9a8108b155fc4e797f2d31f2df4cf74f48ba4825141b47](https://explorer-bradbury.genlayer.com/tx/0x028dff8894e5f773db9a8108b155fc4e797f2d31f2df4cf74f48ba4825141b47) |
 | **GitHub Repository** | [https://github.com/sinascorpion/genlayer-agentic-escrow](https://github.com/sinascorpion/genlayer-agentic-escrow) |
 
 ---

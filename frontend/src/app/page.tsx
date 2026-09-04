@@ -322,7 +322,7 @@ export default function Home() {
               <ExternalLink className="h-4 w-4 text-cyan-400" />
             </div>
             <a 
-              href={`https://explorer-bradbury.genlayer.com/contracts/${CONTRACT_ADDRESS}`} 
+              href={`https://explorer-bradbury.genlayer.com/address/${CONTRACT_ADDRESS}`} 
               target="_blank" 
               rel="noreferrer"
               className="text-sm font-mono text-cyan-400 hover:underline truncate block"
