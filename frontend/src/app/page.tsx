@@ -48,6 +48,7 @@ interface EscrowRecord {
   delivery: string;
   verdict_summary: string;
   confidence: number;
+  txHash?: string;
 }
 
 export default function Home() {
@@ -134,35 +135,75 @@ export default function Home() {
   };
 
   // Handle Create Escrow
-  const handleCreateEscrow = (e: React.FormEvent) => {
+  const handleCreateEscrow = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!account) {
+      alert("Please connect your wallet first using the Connect Wallet button.");
+      return;
+    }
     if (!newTitle || !newSeller || !newAmount || !newSpec) {
       alert("Please fill in all escrow parameters.");
       return;
     }
+
+    const numAmount = parseFloat(newAmount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      alert("Please enter a valid positive GEN amount.");
+      return;
+    }
+
     setIsCreating(true);
 
-    setTimeout(() => {
+    try {
+      // Calculate Wei value in hex (18 decimals for GEN)
+      const weiValue = BigInt(Math.floor(numAmount * 1e18));
+      const hexValue = "0x" + weiValue.toString(16);
+
+      // Trigger actual on-chain transaction in MetaMask to transfer GEN to contract
+      let txHash = "";
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        txHash = await (window as any).ethereum.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: account,
+              to: CONTRACT_ADDRESS,
+              value: hexValue,
+              data: "0x"
+            }
+          ]
+        });
+      }
+
       const newRecord: EscrowRecord = {
         id: escrows.length + 1,
-        buyer: account || "0x67B8Db39d0cB04Ec9e87aC265aCe06DF07B704A7",
+        buyer: account,
         seller: newSeller,
         title: newTitle,
         specifications: newSpec,
         amount: `${newAmount} GEN`,
         status: 0,
         delivery: "",
-        verdict_summary: "Escrow created and locked on GenLayer Bradbury. Awaiting contractor work delivery.",
-        confidence: 0
+        verdict_summary: `Escrow deposited and locked on GenLayer Bradbury Testnet. Funds secured in Intelligent Contract.`,
+        confidence: 0,
+        txHash: txHash || undefined
       };
 
       setEscrows([newRecord, ...escrows]);
-      setIsCreating(false);
       setNewTitle("");
       setNewSeller("");
       setNewAmount("");
       setNewSpec("");
-    }, 1200);
+    } catch (err: any) {
+      console.error("MetaMask transaction error:", err);
+      if (err.code === 4001) {
+        alert("Transaction was rejected in MetaMask.");
+      } else {
+        alert(`Transaction failed: ${err.message || "Unknown error"}`);
+      }
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // Handle Submit Work
@@ -490,6 +531,18 @@ export default function Home() {
                     </div>
 
                     <div className="flex items-center gap-3">
+                      {escrow.txHash && (
+                        <a
+                          href={`${CHAIN_EXPLORER}/tx/${escrow.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 font-mono transition"
+                          title="View Deposit Tx on Bradbury Explorer"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Tx: {escrow.txHash.slice(0, 6)}...{escrow.txHash.slice(-4)}
+                        </a>
+                      )}
                       <span className="text-sm font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 font-mono">
                         {escrow.amount}
                       </span>
