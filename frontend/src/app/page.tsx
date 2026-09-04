@@ -52,20 +52,7 @@ interface EscrowRecord {
 
 export default function Home() {
   const [account, setAccount] = useState<string | null>(null);
-  const [escrows, setEscrows] = useState<EscrowRecord[]>([
-    {
-      id: 1,
-      buyer: "0x67B8Db39d0cB04Ec9e87aC265aCe06DF07B704A7",
-      seller: "0xa467...0d1a",
-      title: "Smart Contract Security Audit & Report",
-      specifications: "Comprehensive formal audit of DeFi contracts with zero critical vulnerabilities and documented remediation proofs.",
-      amount: "25 GEN",
-      status: 0,
-      delivery: "",
-      verdict_summary: "Escrow created and locked on GenLayer Bradbury. Awaiting contractor work submission.",
-      confidence: 0
-    }
-  ]);
+  const [escrows, setEscrows] = useState<EscrowRecord[]>([]);
 
   // Form states
   const [newTitle, setNewTitle] = useState("");
@@ -473,13 +460,22 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 gap-4">
-            {escrows.map((escrow) => {
-              const statusCfg = STATUS_LABELS[escrow.status] || STATUS_LABELS[0];
-              return (
-                <div
-                  key={escrow.id}
-                  className="p-6 rounded-2xl bg-[#0e111a] border border-slate-800/90 shadow-md hover:border-slate-700 transition space-y-4"
-                >
+            {escrows.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-[#0e111a] border border-dashed border-slate-800 text-center space-y-3">
+                <FileText className="h-8 w-8 text-slate-600 mx-auto" />
+                <h3 className="text-sm font-semibold text-slate-300">No active escrows yet</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Fill out the form above with your contractor's wallet address and click "Deploy & Lock Escrow" to initiate your first decentralized agreement.
+                </p>
+              </div>
+            ) : (
+              escrows.map((escrow) => {
+                const statusCfg = STATUS_LABELS[escrow.status] || STATUS_LABELS[0];
+                return (
+                  <div
+                    key={escrow.id}
+                    className="p-6 rounded-2xl bg-[#0e111a] border border-slate-800/90 shadow-md hover:border-slate-700 transition space-y-4"
+                  >
                   <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
                     <div>
                       <div className="flex items-center gap-2">
@@ -574,7 +570,7 @@ export default function Home() {
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
         </div>
       </main>
