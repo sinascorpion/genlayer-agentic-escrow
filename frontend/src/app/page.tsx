@@ -11,12 +11,12 @@ import {
   ExternalLink, 
   Coins, 
   Sparkles, 
-  Search, 
   PlusCircle, 
   RefreshCw,
   Cpu,
   User,
-  ArrowRight
+  LogOut,
+  Info
 } from "lucide-react";
 
 const CONTRACT_ADDRESS = "0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52";
@@ -52,18 +52,17 @@ interface EscrowRecord {
 
 export default function Home() {
   const [account, setAccount] = useState<string | null>(null);
-  const [networkOk, setNetworkOk] = useState<boolean>(true);
   const [escrows, setEscrows] = useState<EscrowRecord[]>([
     {
       id: 1,
       buyer: "0x67B8Db39d0cB04Ec9e87aC265aCe06DF07B704A7",
-      seller: "0x3D4c...91B2",
-      title: "Decentralized AI Oracle Engine",
-      specifications: "Deliver an on-chain Python GenLayer contract integrating equivalence checking and web scraping validator logic with >= 95% test coverage.",
-      amount: "50 GEN",
+      seller: "0x98A1...41F2",
+      title: "Smart Contract Security Audit & Report",
+      specifications: "Comprehensive formal audit of DeFi contracts with zero critical vulnerabilities and documented remediation proofs.",
+      amount: "25 GEN",
       status: 1,
-      delivery: "PR #42 submitted on GitHub: contracts/oracle.py with full test suite passing 18 unit tests.",
-      verdict_summary: "Work submitted. Ready for buyer sign-off or autonomous AI dispute resolution.",
+      delivery: "https://github.com/sinascorpion/audit-deliverables/blob/main/FINAL_AUDIT_REPORT.pdf - All 14 tests passing.",
+      verdict_summary: "Work submitted by contractor. Awaiting client release or autonomous AI arbitration.",
       confidence: 0
     }
   ]);
@@ -83,6 +82,27 @@ export default function Home() {
   const [isResolvingAi, setIsResolvingAi] = useState(false);
   const [aiAnalysisLog, setAiAnalysisLog] = useState<string | null>(null);
 
+  // Check if wallet is already connected on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      (window as any).ethereum.request({ method: "eth_accounts" })
+        .then((accounts: string[]) => {
+          if (accounts.length > 0) {
+            setAccount(accounts[0]);
+          }
+        })
+        .catch((err: any) => console.error("Error fetching accounts", err));
+
+      (window as any).ethereum.on("accountsChanged", (accounts: string[]) => {
+        if (accounts.length > 0) {
+          setAccount(accounts[0]);
+        } else {
+          setAccount(null);
+        }
+      });
+    }
+  }, []);
+
   // Connect Web3 Wallet
   const connectWallet = async () => {
     if (typeof window !== "undefined" && (window as any).ethereum) {
@@ -97,6 +117,11 @@ export default function Home() {
     } else {
       alert("Please install MetaMask or a Web3 compatible wallet to connect to GenLayer Bradbury!");
     }
+  };
+
+  // Disconnect Web3 Wallet
+  const disconnectWallet = () => {
+    setAccount(null);
   };
 
   // Add GenLayer Network to Wallet
@@ -140,7 +165,7 @@ export default function Home() {
         amount: `${newAmount} GEN`,
         status: 0,
         delivery: "",
-        verdict_summary: "Escrow created and locked on GenLayer Bradbury. Awaiting work delivery.",
+        verdict_summary: "Escrow created and locked on GenLayer Bradbury. Awaiting contractor work delivery.",
         confidence: 0
       };
 
@@ -167,7 +192,7 @@ export default function Home() {
             ...e,
             status: 1,
             delivery: deliveryInput,
-            verdict_summary: "Work submitted. Ready for buyer approval or AI dispute resolution."
+            verdict_summary: "Deliverables submitted. Awaiting client release or autonomous AI arbitration."
           };
         }
         return e;
@@ -212,18 +237,18 @@ export default function Home() {
     setTimeout(() => {
       const lower = complaintInput.toLowerCase();
       let decision = "RELEASE";
-      let summary = "Work delivered satisfies the primary contractual specifications. Slight deviations are acceptable within industry margin.";
+      let summary = "Delivered deliverables satisfy primary contractual specifications. Slight variations are within standard acceptable tolerance.";
       let status = 2;
       let conf = 92;
 
-      if (lower.includes("fake") || lower.includes("nothing") || lower.includes("fraud") || lower.includes("failed") || lower.includes("broken")) {
+      if (lower.includes("fake") || lower.includes("nothing") || lower.includes("fraud") || lower.includes("failed") || lower.includes("broken") || lower.includes("missing")) {
         decision = "REFUND";
-        summary = "Seller failed to adhere to core contractual specs. Verifiable proof is missing or critically broken. 100% refund ordered.";
+        summary = "Contractor failed to adhere to core contractual specs. Verifiable proof is missing or critically defective. 100% refund awarded to buyer.";
         status = 3;
         conf = 96;
       } else if (lower.includes("partial") || lower.includes("incomplete") || lower.includes("half") || lower.includes("delay")) {
         decision = "SPLIT";
-        summary = "Substantial progress delivered but crucial contractual components missing. Balanced 50/50 resolution awarded.";
+        summary = "Substantial progress delivered but key components incomplete. Balanced 50/50 resolution awarded.";
         status = 4;
         conf = 88;
       }
@@ -283,9 +308,18 @@ export default function Home() {
             </button>
 
             {account ? (
-              <div className="flex items-center gap-2 bg-slate-900 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-mono text-emerald-300">
-                <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
-                {account.slice(0, 6)}...{account.slice(-4)}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-slate-900 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-mono text-emerald-300">
+                  <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
+                  {account.slice(0, 6)}...{account.slice(-4)}
+                </div>
+                <button
+                  onClick={disconnectWallet}
+                  title="Disconnect Wallet"
+                  className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-rose-500/50 text-slate-400 hover:text-rose-400 transition"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                </button>
               </div>
             ) : (
               <button
@@ -353,16 +387,20 @@ export default function Home() {
 
         {/* Section 1: Create Escrow Contract */}
         <div className="p-6 rounded-2xl bg-[#0e111a] border border-slate-800/90 shadow-xl">
-          <div className="flex items-center gap-2 mb-4">
-            <PlusCircle className="h-5 w-5 text-emerald-400" />
-            <h2 className="text-lg font-semibold text-white">Initiate Autonomous Escrow Agreement</h2>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <PlusCircle className="h-5 w-5 text-emerald-400" />
+              <h2 className="text-lg font-semibold text-white">Initiate Autonomous Escrow Agreement</h2>
+            </div>
+            <span className="text-xs text-slate-500 font-mono hidden sm:inline">GenLayer Bradbury 4221</span>
           </div>
+
           <form onSubmit={handleCreateEscrow} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Agreement Title</label>
               <input
                 type="text"
-                placeholder="e.g. Full-Stack GenLayer DApp Integration"
+                placeholder="e.g. Web3 Frontend DApp Development"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
@@ -370,7 +408,7 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Seller / Contractor Address</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Contractor / Seller Address</label>
               <input
                 type="text"
                 placeholder="0x... (Recipient Address)"
@@ -392,10 +430,10 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Specifications & Criteria for AI Review</label>
+              <label className="block text-xs font-medium text-slate-400 mb-1">Agreed Deliverable Specifications (For AI Arbiter)</label>
               <input
                 type="text"
-                placeholder="Clear measurable criteria: 'Clean TypeScript build, unit tests passing...'"
+                placeholder="e.g. Full-stack dashboard with wallet connection and responsive UI"
                 value={newSpec}
                 onChange={(e) => setNewSpec(e.target.value)}
                 className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
@@ -477,9 +515,9 @@ export default function Home() {
                   {escrow.delivery && (
                     <div className="text-sm text-slate-300">
                       <span className="text-slate-400 font-medium block text-xs uppercase tracking-wider mb-1">
-                        Seller Submitted Deliverable / Proof:
+                        Contractor Deliverable Proof:
                       </span>
-                      <p className="bg-[#121520] p-3 rounded-xl border border-cyan-500/20 font-mono text-xs text-cyan-200">
+                      <p className="bg-[#121520] p-3 rounded-xl border border-cyan-500/20 font-mono text-xs text-cyan-200 break-all">
                         {escrow.delivery}
                       </p>
                     </div>
@@ -510,7 +548,7 @@ export default function Home() {
                         className="text-xs px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium transition flex items-center gap-1.5"
                       >
                         <Send className="h-3.5 w-3.5" />
-                        Submit Work Proof
+                        Submit Deliverable Proof
                       </button>
                     )}
 
@@ -570,7 +608,7 @@ export default function Home() {
             {selectedEscrow.status === 0 ? (
               <div className="space-y-3">
                 <p className="text-xs text-slate-400">
-                  Provide evidence of your completed deliverables (e.g. GitHub PR URL, deployed URL, transaction hash, or documentation summary):
+                  Provide verifiable evidence of your completed deliverables (e.g. GitHub repo link, commit hash, deployed URL, or documentation summary):
                 </p>
                 <textarea
                   rows={4}
@@ -598,11 +636,11 @@ export default function Home() {
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-slate-400">
-                  Detail your dispute complaint. GenLayer AI Validators will execute consensus over your specifications, the submitted work, and your complaint:
+                  Detail your dispute claim. GenLayer AI Validators will execute consensus over your specifications, the submitted deliverables, and your complaint:
                 </p>
                 <textarea
                   rows={4}
-                  placeholder="Explain why the deliverable failed or does not match specs (e.g. 'Code is broken and missing required unit tests')..."
+                  placeholder="Explain why deliverables failed or do not match specs (e.g. 'Delivered code is missing required unit tests and crashes on launch')..."
                   value={complaintInput}
                   onChange={(e) => setComplaintInput(e.target.value)}
                   className="w-full bg-[#131722] border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 font-sans"
