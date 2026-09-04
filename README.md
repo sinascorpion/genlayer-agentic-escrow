@@ -9,7 +9,19 @@
 
 ---
 
+## About
+
+**AgenticEscrow** is a next-generation decentralized escrow protocol powered by GenLayer's non-deterministic Intelligent Contracts. It combines decentralized smart contract security with autonomous AI multi-validator arbitration to eliminate human intermediaries, unfair dispute resolutions, and excessive platform commissions in digital commerce, software contracting, and freelancing.
+
+- 🌐 **Live Website / DApp**: [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app)
+- 📜 **Deployed Intelligent Contract**: [`0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52`](https://explorer-bradbury.genlayer.com/address/0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52)
+- ⛓️ **Network**: GenLayer Bradbury Testnet (Chain ID: `4221` / `0x107d`)
+- 🔍 **Block Explorer**: [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com)
+
+---
+
 ## Table of Contents
+- [About](#about)
 - [Problem and Motivation](#problem-and-motivation)
 - [How AgenticEscrow Solves It](#how-agenticescrow-solves-it)
 - [Key Features](#key-features)
