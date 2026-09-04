@@ -750,55 +750,81 @@ export default function Home() {
                     </div>
                   )}
 
-                  {/* Action Buttons depending on status */}
+                  {/* Action Buttons depending on status & role */}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                     {escrow.status === 5 && (
                       <>
-                        <button
-                          onClick={() => setViewingApplicantsEscrow(escrow)}
-                          className="text-xs px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 font-medium transition flex items-center gap-1.5"
-                        >
-                          <Users className="h-3.5 w-3.5" />
-                          Review Applicants ({(escrow.applicants || []).length})
-                        </button>
+                        {/* Only the Buyer can review applicants & assign */}
+                        {(!account || account.toLowerCase() === escrow.buyer.toLowerCase()) && (
+                          <button
+                            onClick={() => setViewingApplicantsEscrow(escrow)}
+                            className="text-xs px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 font-medium transition flex items-center gap-1.5"
+                          >
+                            <Users className="h-3.5 w-3.5" />
+                            Review Applicants ({(escrow.applicants || []).length})
+                          </button>
+                        )}
 
-                        <button
-                          onClick={() => setApplyingEscrow(escrow)}
-                          className="text-xs px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-slate-950 font-semibold transition flex items-center gap-1.5 shadow-sm"
-                        >
-                          <Briefcase className="h-3.5 w-3.5" />
-                          Apply for this Task
-                        </button>
+                        {/* Other wallets (candidates) see the Apply button */}
+                        {(!account || account.toLowerCase() !== escrow.buyer.toLowerCase()) && (
+                          <button
+                            onClick={() => setApplyingEscrow(escrow)}
+                            className="text-xs px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-slate-950 font-semibold transition flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Briefcase className="h-3.5 w-3.5" />
+                            Apply for this Task
+                          </button>
+                        )}
                       </>
                     )}
 
                     {escrow.status === 0 && (
-                      <button
-                        onClick={() => setSelectedEscrow(escrow)}
-                        className="text-xs px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium transition flex items-center gap-1.5"
-                      >
-                        <Send className="h-3.5 w-3.5" />
-                        Submit Deliverable Proof
-                      </button>
+                      <>
+                        {/* Only designated contractor can submit deliverable */}
+                        {(!account || account.toLowerCase() === escrow.seller.toLowerCase()) && (
+                          <button
+                            onClick={() => setSelectedEscrow(escrow)}
+                            className="text-xs px-4 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-medium transition flex items-center gap-1.5"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                            Submit Deliverable Proof
+                          </button>
+                        )}
+                        {account && account.toLowerCase() === escrow.buyer.toLowerCase() && (
+                          <span className="text-[11px] text-slate-500 font-mono italic">
+                            Waiting for assigned contractor to submit deliverables...
+                          </span>
+                        )}
+                      </>
                     )}
 
                     {escrow.status === 1 && (
                       <>
-                        <button
-                          onClick={() => handleApprove(escrow.id)}
-                          className="text-xs px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold transition flex items-center gap-1.5 shadow-sm"
-                        >
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Approve & Release Funds
-                        </button>
+                        {/* Buyer actions */}
+                        {(!account || account.toLowerCase() === escrow.buyer.toLowerCase()) && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(escrow.id)}
+                              className="text-xs px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold transition flex items-center gap-1.5 shadow-sm"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Approve & Release Funds
+                            </button>
 
-                        <button
-                          onClick={() => setSelectedEscrow(escrow)}
-                          className="text-xs px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium transition flex items-center gap-1.5"
-                        >
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          Trigger GenLayer AI Arbitration
-                        </button>
+                            <button
+                              onClick={() => setSelectedEscrow(escrow)}
+                              className="text-xs px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-medium transition flex items-center gap-1.5"
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              Trigger GenLayer AI Arbitration
+                            </button>
+                          </>
+                        )}
+                        {account && account.toLowerCase() === escrow.seller.toLowerCase() && (
+                          <span className="text-[11px] text-cyan-400 font-mono italic">
+                            Deliverables under review by client.
+                          </span>
+                        )}
                       </>
                     )}
                   </div>
