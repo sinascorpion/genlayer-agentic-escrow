@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "AgenticEscrow - Autonomous AI Dispute Resolution on GenLayer",
   description: "Trustless decentralized escrow and AI-powered judicial arbitration protocol powered by GenLayer's non-deterministic consensus.",
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
