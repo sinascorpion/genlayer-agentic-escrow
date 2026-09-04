@@ -43,7 +43,10 @@ In traditional commerce and freelance platforms (such as Upwork, Fiverr, and tra
 
 ## Key Features
 
-- End-to-End Escrow Lifecycle: Create agreements, lock native GEN funds, submit deliverables, release payment, or trigger arbitration.
+- Dual Escrow Modes:
+  - **Open Public Bounty**: Buyers post specifications with locked GEN rewards without needing a freelancer address upfront. Candidates apply with proposals and resumes. The buyer reviews and assigns the best candidate.
+  - **Direct Private Escrow**: Buyers specify a designated contractor address upfront for bilateral agreements.
+- End-to-End Escrow Lifecycle: Create agreements, lock native GEN funds, review applicants, assign contractors, submit deliverables, release payment, or trigger arbitration.
 - Natural Language Contract Specifications: Parties can define deliverables in plain English or code specifications.
 - Automated Evidence Assessment: Evaluates URLs, commit hashes, documents, and technical requirements.
 - Three-Way Judicial Verdicts:
@@ -56,18 +59,26 @@ In traditional commerce and freelance platforms (such as Upwork, Fiverr, and tra
 
 ## System Architecture and Workflow
 
-```bmermaid
+```mermaid
 sequenceDiagram
     autonumber
     actor Buyer as Buyer
     participant Contract as AgenticEscrow Contract
-    actor Seller as Seller
+    actor Freelancer as Freelancers / Candidates
     participant Validators as GenLayer AI Validators
 
-    Buyer->>Contract: create_escrow(seller, title, specifications, amount)
-    Note over Contract: State: PENDING_SUBMISSION (0)
+    alt Mode 1: Open Public Bounty
+        Buyer->>Contract: create_escrow(address(0), title, specs, amount)
+        Note over Contract: State: OPEN_FOR_APPLICANTS (5)
+        Freelancer->>Contract: apply_for_task(escrow_id, proposal)
+        Buyer->>Contract: assign_contractor(escrow_id, selected_freelancer)
+        Note over Contract: State: PENDING_SUBMISSION (0)
+    else Mode 2: Direct Escrow
+        Buyer->>Contract: create_escrow(contractor, title, specs, amount)
+        Note over Contract: State: PENDING_SUBMISSION (0)
+    end
     
-    Seller->>Contract: submit_work(escrow_id, delivery_details)
+    Freelancer->>Contract: submit_work(escrow_id, delivery_details)
     Note over Contract: State: SUBMITTED (1)
 
     alt Standard Approval (No Dispute)
@@ -92,11 +103,13 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 
 | Method | Type | Parameters | Description |
 | :--- | :--- | :--- | :--- |
-| `create_escrow` | `writ` | seller: Address, title: str, specifications: str, amount: u256 | Creates a new escrow agreement and locks state. |
-| `submit_work` | `writ`" | escrow_id: u64, delivery_details: str | Contractor submits proof or deliverable links. |
-| `approve_and_releas` | `writ` | escrow_id: u64 | Buyer manually approves and releases funds. |
-| `resolve_dispute_with_ai` | `writ` | escrow_id: u64, buyer_complaint: str | Triggers multi-validator LLM arbitration and consensus. |
-| `get_escrow` | `view` | escrow_id: u64 | Returns full escrow data, verdicts, and confidence scores. |
+| `create_escrow` | `write` | seller: Address, title: str, specifications: str, amount: u256 | Creates a new escrow agreement (Direct or Open Bounty if seller is zero address) and locks state. |
+| `apply_for_task` | `write` | escrow_id: u64, proposal: str | Freelancers apply for open bounties with proposals and portfolio details. |
+| `assign_contractor` | `write` | escrow_id: u64, selected_contractor: Address | Buyer reviews candidate proposals and assigns the chosen contractor. |
+| `submit_work` | `write` | escrow_id: u64, delivery_details: str | Assigned contractor submits proof or deliverable links. |
+| `approve_and_release` | `write` | escrow_id: u64 | Buyer manually approves and releases funds. |
+| `resolve_dispute_with_ai` | `write` | escrow_id: u64, buyer_complaint: str | Triggers multi-validator LLM arbitration and consensus. |
+| `get_escrow` | `view` | escrow_id: u64 | Returns full escrow data, applicants list, verdicts, and confidence scores. |
 | `get_total_escrows` | `view` | None | Returns total number of escrows created. |
 
 ---

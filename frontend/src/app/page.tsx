@@ -16,7 +16,11 @@ import {
   Cpu,
   User,
   LogOut,
-  Info
+  Info,
+  Users,
+  Briefcase,
+  UserCheck,
+  Globe
 } from "lucide-react";
 
 const CONTRACT_ADDRESS = "0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52";
@@ -29,13 +33,21 @@ const CHAIN_EXPLORER = "https://explorer-bradbury.genlayer.com";
 // 2: RELEASED_TO_SELLER
 // 3: REFUNDED_TO_BUYER
 // 4: SPLIT_50_50
+// 5: OPEN_FOR_APPLICANTS
 const STATUS_LABELS: Record<number, { label: string; color: string; bg: string }> = {
   0: { label: "Pending Work Submission", color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/20" },
   1: { label: "Work Submitted - Under Review", color: "text-cyan-400", bg: "bg-cyan-400/10 border-cyan-400/20" },
   2: { label: "Completed & Released", color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" },
   3: { label: "Refunded to Buyer", color: "text-rose-400", bg: "bg-rose-400/10 border-rose-400/20" },
-  4: { label: "Split 50/50 via AI Verdict", color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20" }
+  4: { label: "Split 50/50 via AI Verdict", color: "text-purple-400", bg: "bg-purple-400/10 border-purple-400/20" },
+  5: { label: "Open Bounty (Accepting Applicants)", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" }
 };
+
+interface Applicant {
+  address: string;
+  proposal: string;
+  appliedAt?: string;
+}
 
 interface EscrowRecord {
   id: number;
@@ -49,6 +61,8 @@ interface EscrowRecord {
   verdict_summary: string;
   confidence: number;
   txHash?: string;
+  escrowMode?: "direct" | "bounty";
+  applicants?: Applicant[];
 }
 
 export default function Home() {
@@ -56,6 +70,7 @@ export default function Home() {
   const [escrows, setEscrows] = useState<EscrowRecord[]>([]);
 
   // Form states
+  const [escrowMode, setEscrowMode] = useState<"direct" | "bounty">("bounty");
   const [newTitle, setNewTitle] = useState("");
   const [newSeller, setNewSeller] = useState("");
   const [newAmount, setNewAmount] = useState("");
@@ -134,15 +149,25 @@ export default function Home() {
     }
   };
 
-  // Handle Create Escrow
+  // Application & Assign Modal states
+  const [applyingEscrow, setApplyingEscrow] = useState<EscrowRecord | null>(null);
+  const [viewingApplicantsEscrow, setViewingApplicantsEscrow] = useState<EscrowRecord | null>(null);
+  const [proposalInput, setProposalInput] = useState("");
+  const [isApplying, setIsApplying] = useState(false);
+
+  // Handle Create Escrow (Direct or Open Bounty)
   const handleCreateEscrow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!account) {
       alert("Please connect your wallet first using the Connect Wallet button.");
       return;
     }
-    if (!newTitle || !newSeller || !newAmount || !newSpec) {
-      alert("Please fill in all escrow parameters.");
+    if (!newTitle || !newAmount || !newSpec) {
+      alert("Please fill in agreement title, amount, and specifications.");
+      return;
+    }
+    if (escrowMode === "direct" && !newSeller) {
+      alert("Please specify contractor address for Direct Escrow mode.");
       return;
     }
 
@@ -175,18 +200,25 @@ export default function Home() {
         });
       }
 
+      const isBounty = escrowMode === "bounty";
+      const assignedSeller = isBounty ? "0x0000000000000000000000000000000000000000" : newSeller;
+
       const newRecord: EscrowRecord = {
         id: escrows.length + 1,
         buyer: account,
-        seller: newSeller,
+        seller: assignedSeller,
         title: newTitle,
         specifications: newSpec,
         amount: `${newAmount} GEN`,
-        status: 0,
+        status: isBounty ? 5 : 0, // 5 = OPEN_FOR_APPLICANTS, 0 = PENDING_SUBMISSION
         delivery: "",
-        verdict_summary: `Escrow deposited and locked on GenLayer Bradbury Testnet. Funds secured in Intelligent Contract.`,
+        verdict_summary: isBounty
+          ? "Open public bounty created on GenLayer. Freelancers can apply with proposals for buyer review."
+          : "Direct escrow deposited and locked on GenLayer Bradbury. Awaiting contractor work submission.",
         confidence: 0,
-        txHash: txHash || undefined
+        txHash: txHash || undefined,
+        escrowMode: escrowMode,
+        applicants: []
       };
 
       setEscrows([newRecord, ...escrows]);
@@ -204,6 +236,62 @@ export default function Home() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  // Handle Apply for Bounty Task
+  const handleApplyForTask = (id: number) => {
+    if (!account) {
+      alert("Please connect your wallet first to submit an application.");
+      return;
+    }
+    if (!proposalInput.trim()) {
+      alert("Please write a short proposal or resume overview.");
+      return;
+    }
+
+    setIsApplying(true);
+    setTimeout(() => {
+      setEscrows(escrows.map(e => {
+        if (e.id === id) {
+          const currentApplicants = e.applicants || [];
+          if (currentApplicants.some(a => a.address.toLowerCase() === account.toLowerCase())) {
+            alert("You have already submitted an application for this task.");
+            return e;
+          }
+          return {
+            ...e,
+            applicants: [
+              ...currentApplicants,
+              {
+                address: account,
+                proposal: proposalInput,
+                appliedAt: new Date().toLocaleTimeString()
+              }
+            ]
+          };
+        }
+        return e;
+      }));
+      setIsApplying(false);
+      setProposalInput("");
+      setApplyingEscrow(null);
+    }, 600);
+  };
+
+  // Handle Assign Contractor by Buyer
+  const handleAssignContractor = (escrowId: number, contractorAddress: string) => {
+    setEscrows(escrows.map(e => {
+      if (e.id === escrowId) {
+        return {
+          ...e,
+          seller: contractorAddress,
+          status: 0, // PENDING_SUBMISSION
+          verdict_summary: `Contractor ${contractorAddress.slice(0, 8)}... chosen and assigned by buyer. Awaiting deliverable submission.`
+        };
+      }
+      return e;
+    }));
+    setViewingApplicantsEscrow(null);
   };
 
   // Handle Submit Work
@@ -423,39 +511,80 @@ export default function Home() {
             <span className="text-xs text-slate-500 font-mono hidden sm:inline">GenLayer Bradbury 4221</span>
           </div>
 
-          <form onSubmit={handleCreateEscrow} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Agreement Title</label>
-              <input
-                type="text"
-                placeholder="e.g. Web3 Frontend DApp Development"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-              />
+          <form onSubmit={handleCreateEscrow} className="space-y-4">
+            {/* Escrow Mode Switcher */}
+            <div className="bg-[#131722] p-1.5 rounded-xl border border-slate-800 flex max-w-md gap-1">
+              <button
+                type="button"
+                onClick={() => setEscrowMode("bounty")}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition ${
+                  escrowMode === "bounty"
+                    ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/20"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Open Public Bounty (Any Freelancer)
+              </button>
+              <button
+                type="button"
+                onClick={() => setEscrowMode("direct")}
+                className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition ${
+                  escrowMode === "direct"
+                    ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/20"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <UserCheck className="h-3.5 w-3.5" />
+                Direct Escrow (Specific Wallet)
+              </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Contractor / Seller Address</label>
-              <input
-                type="text"
-                placeholder="0x... (Recipient Address)"
-                value={newSeller}
-                onChange={(e) => setNewSeller(e.target.value)}
-                className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono transition"
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Agreement / Bounty Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Full-Stack Web3 DApp Development"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1">Locked Amount (GEN)</label>
-              <input
-                type="number"
-                placeholder="e.g. 5"
-                value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
-                className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
-              />
-            </div>
+              {escrowMode === "direct" ? (
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Contractor / Seller Address</label>
+                  <input
+                    type="text"
+                    placeholder="0x... (Designated recipient wallet)"
+                    value={newSeller}
+                    onChange={(e) => setNewSeller(e.target.value)}
+                    className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 font-mono transition"
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col justify-center bg-[#131722]/60 rounded-xl border border-blue-500/20 px-4 py-2 text-xs">
+                  <span className="font-semibold text-blue-400 flex items-center gap-1.5">
+                    <Globe className="h-3.5 w-3.5" />
+                    Open Public Bounty Mode
+                  </span>
+                  <span className="text-slate-400 text-[11px] mt-0.5 leading-relaxed">
+                    No wallet required upfront! Candidates will apply with proposals, and you select & assign the best freelancer.
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Locked Amount (GEN)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 5"
+                  value={newAmount}
+                  onChange={(e) => setNewAmount(e.target.value)}
+                  className="w-full bg-[#131722] border border-slate-700/80 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                />
+              </div>
 
             <div>
               <label className="block text-xs font-medium text-slate-400 mb-1">Agreed Deliverable Specifications (For AI Arbiter)</label>
@@ -468,24 +597,25 @@ export default function Home() {
               />
             </div>
 
-            <div className="md:col-span-2 flex justify-end mt-2">
-              <button
-                type="submit"
-                disabled={isCreating}
-                className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
-              >
-                {isCreating ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Recording on GenLayer...
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle className="h-4 w-4" />
-                    Deploy & Lock Escrow
-                  </>
-                )}
-              </button>
+              <div className="md:col-span-2 flex justify-end mt-2">
+                <button
+                  type="submit"
+                  disabled={isCreating}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold text-sm transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isCreating ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      Recording on GenLayer...
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="h-4 w-4" />
+                      Deploy & Lock Escrow
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -526,7 +656,13 @@ export default function Home() {
                       <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 font-mono">
                         <span>Buyer: {escrow.buyer.slice(0, 8)}...</span>
                         <span>•</span>
-                        <span>Seller: {escrow.seller.slice(0, 8)}...</span>
+                        {escrow.status === 5 ? (
+                          <span className="text-blue-400 font-semibold bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                            🌐 Open for Applicants ({(escrow.applicants || []).length} proposals)
+                          </span>
+                        ) : (
+                          <span>Seller: {escrow.seller.slice(0, 8)}...</span>
+                        )}
                       </div>
                     </div>
 
@@ -591,6 +727,26 @@ export default function Home() {
 
                   {/* Action Buttons depending on status */}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                    {escrow.status === 5 && (
+                      <>
+                        <button
+                          onClick={() => setViewingApplicantsEscrow(escrow)}
+                          className="text-xs px-4 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 font-medium transition flex items-center gap-1.5"
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                          Review Applicants ({(escrow.applicants || []).length})
+                        </button>
+
+                        <button
+                          onClick={() => setApplyingEscrow(escrow)}
+                          className="text-xs px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-slate-950 font-semibold transition flex items-center gap-1.5 shadow-sm"
+                        >
+                          <Briefcase className="h-3.5 w-3.5" />
+                          Apply for this Task
+                        </button>
+                      </>
+                    )}
+
                     {escrow.status === 0 && (
                       <button
                         onClick={() => setSelectedEscrow(escrow)}
@@ -730,6 +886,160 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Apply for Bounty Task */}
+      {applyingEscrow && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e111a] border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Briefcase className="h-4 w-4 text-blue-400" />
+                Apply for Task: {applyingEscrow.title}
+              </h3>
+              <button
+                onClick={() => setApplyingEscrow(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="p-3 bg-[#131722] rounded-xl border border-slate-800 text-xs">
+                <span className="text-slate-400 font-medium">Bounty Reward:</span>{" "}
+                <span className="text-emerald-400 font-bold font-mono">{applyingEscrow.amount}</span>
+                <div className="mt-1 text-slate-300">
+                  <span className="text-slate-400 font-medium">Specifications:</span>{" "}
+                  {applyingEscrow.specifications}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Your Proposal & Portfolio / Relevant Experience
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Explain why you're suited for this project, relevant past repos or experience, and estimated timeline..."
+                  value={proposalInput}
+                  onChange={(e) => setProposalInput(e.target.value)}
+                  className="w-full bg-[#131722] border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 font-sans"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setApplyingEscrow(null)}
+                  disabled={isApplying}
+                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleApplyForTask(applyingEscrow.id)}
+                  disabled={isApplying}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-slate-950 font-semibold text-xs transition disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isApplying ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      Submitting Proposal...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5" />
+                      Submit Application
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Review Applicants & Assign Contractor */}
+      {viewingApplicantsEscrow && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#0e111a] border border-slate-700/80 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <Users className="h-4 w-4 text-cyan-400" />
+                  Candidate Applicants ({viewingApplicantsEscrow.title})
+                </h3>
+                <span className="text-xs text-slate-400 font-mono">
+                  Reward: {viewingApplicantsEscrow.amount} • Escrow #{viewingApplicantsEscrow.id}
+                </span>
+              </div>
+              <button
+                onClick={() => setViewingApplicantsEscrow(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 flex-1 pr-1">
+              {(!viewingApplicantsEscrow.applicants || viewingApplicantsEscrow.applicants.length === 0) ? (
+                <div className="p-8 text-center space-y-2 border border-dashed border-slate-800 rounded-xl">
+                  <Users className="h-6 w-6 text-slate-600 mx-auto" />
+                  <p className="text-xs text-slate-400">No applicants have submitted proposals yet.</p>
+                  <p className="text-[11px] text-slate-500">
+                    Once freelancers click "Apply for this Task", their resumes and proposals will show up here for you to review and assign.
+                  </p>
+                </div>
+              ) : (
+                viewingApplicantsEscrow.applicants.map((applicant, idx) => {
+                  const isBuyer = account && account.toLowerCase() === viewingApplicantsEscrow.buyer.toLowerCase();
+                  return (
+                    <div
+                      key={idx}
+                      className="p-4 rounded-xl bg-[#131722] border border-slate-800 space-y-2.5 hover:border-slate-700 transition"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                        <div className="flex items-center gap-2 font-mono text-xs text-cyan-300">
+                          <User className="h-3.5 w-3.5 text-cyan-400" />
+                          <span>{applicant.address}</span>
+                        </div>
+                        {applicant.appliedAt && (
+                          <span className="text-[11px] text-slate-500 font-mono">{applicant.appliedAt}</span>
+                        )}
+                      </div>
+
+                      <div className="text-xs text-slate-300 font-sans leading-relaxed">
+                        <span className="text-slate-400 font-medium block text-[11px] uppercase mb-0.5">Proposal / Resume:</span>
+                        <p className="bg-[#0e111a] p-2.5 rounded-lg border border-slate-800/60 font-mono text-xs">
+                          {applicant.proposal}
+                        </p>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <button
+                          onClick={() => handleAssignContractor(viewingApplicantsEscrow.id, applicant.address)}
+                          className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
+                        >
+                          <UserCheck className="h-3.5 w-3.5" />
+                          Select & Assign as Contractor
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-slate-800 pt-3">
+              <button
+                onClick={() => setViewingApplicantsEscrow(null)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

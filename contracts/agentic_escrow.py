@@ -23,6 +23,9 @@ class AgenticEscrow(gl.Contract):
     verdict_summaries: TreeMap[u64, str]
     confidence_scores: TreeMap[u64, u8]
 
+    # Open Bounty Applicants State (escrow_id -> JSON serialized list of applicants)
+    applicants: TreeMap[u64, str]
+
     def __init__(self, initial_owner: Address):
         self.owner = initial_owner
         self.escrow_counter = 0
@@ -44,11 +47,53 @@ class AgenticEscrow(gl.Contract):
         self.amounts[escrow_id] = amount
         self.titles[escrow_id] = title
         self.specifications[escrow_id] = specifications
-        self.statuses[escrow_id] = 0  # PENDING_SUBMISSION
         self.deliveries[escrow_id] = ""
-        self.verdict_summaries[escrow_id] = "Escrow created, awaiting seller work submission."
+        self.applicants[escrow_id] = "[]"
         self.confidence_scores[escrow_id] = 0
+
+        # If seller address is zero address (or unassigned), mark as OPEN_FOR_APPLICANTS (status 5)
+        zero_addr = Address("0x0000000000000000000000000000000000000000")
+        if seller == zero_addr:
+            self.statuses[escrow_id] = 5  # OPEN_FOR_APPLICANTS
+            self.verdict_summaries[escrow_id] = "Open public bounty created. Awaiting freelancer applications."
+        else:
+            self.statuses[escrow_id] = 0  # PENDING_SUBMISSION
+            self.verdict_summaries[escrow_id] = "Direct escrow created. Awaiting contractor deliverable submission."
+
         return escrow_id
+
+    @gl.public.write
+    def apply_for_task(self, escrow_id: u64, proposal: str) -> None:
+        applicant = gl.message.sender_address
+        current_status = self.statuses.get(escrow_id, 255)
+        assert current_status == 5, "Escrow is not open for applications"
+        buyer = self.buyers.get(escrow_id)
+        assert applicant != buyer, "Buyer cannot apply for own escrow"
+
+        raw_apps = self.applicants.get(escrow_id, "[]")
+        apps_list = json.loads(raw_apps) if raw_apps else []
+        # Check if already applied
+        for app in apps_list:
+            if app.get("address") == str(applicant):
+                raise gl.UserError("Already applied for this task")
+
+        apps_list.append({
+            "address": str(applicant),
+            "proposal": proposal
+        })
+        self.applicants[escrow_id] = json.dumps(apps_list)
+
+    @gl.public.write
+    def assign_contractor(self, escrow_id: u64, selected_contractor: Address) -> None:
+        sender = gl.message.sender_address
+        buyer = self.buyers.get(escrow_id)
+        assert sender == buyer, "Only buyer can assign contractor"
+        current_status = self.statuses.get(escrow_id, 255)
+        assert current_status == 5, "Escrow is not in open application state"
+
+        self.sellers[escrow_id] = selected_contractor
+        self.statuses[escrow_id] = 0  # PENDING_SUBMISSION
+        self.verdict_summaries[escrow_id] = f"Contractor {str(selected_contractor)[:8]}... assigned by buyer. Awaiting work submission."
 
     @gl.public.write
     def submit_work(self, escrow_id: u64, delivery_details: str) -> None:
@@ -165,6 +210,7 @@ Provide your output ONLY in valid JSON format:
             "delivery": self.deliveries.get(escrow_id, ""),
             "verdict_summary": self.verdict_summaries.get(escrow_id, ""),
             "confidence": self.confidence_scores.get(escrow_id, 0),
+            "applicants": self.applicants.get(escrow_id, "[]"),
         }
 
     @gl.public.view
