@@ -409,22 +409,63 @@ export default function Home() {
     }, 3000);
 
     setTimeout(() => {
-      const lower = complaintInput.toLowerCase();
+      const lowerComplaint = complaintInput.toLowerCase();
+      const currentEscrow = escrows.find((e) => e.id === id);
+      const delivery = (currentEscrow?.delivery || "").toLowerCase();
+
       let decision = "RELEASE";
       let summary = "Delivered deliverables satisfy primary contractual specifications. Slight variations are within standard acceptable tolerance.";
       let status = 2;
       let conf = 92;
 
-      if (lower.includes("fake") || lower.includes("nothing") || lower.includes("fraud") || lower.includes("failed") || lower.includes("broken") || lower.includes("missing")) {
+      // Check for broken links, fake links, missing deliverables, or complaints in Persian/English
+      const isInvalidProof =
+        delivery.includes("test") ||
+        delivery.includes("example.com") ||
+        delivery.includes("fake") ||
+        delivery === "" ||
+        delivery === "https://github.com/test";
+
+      const isRefundComplaint =
+        lowerComplaint.includes("fake") ||
+        lowerComplaint.includes("nothing") ||
+        lowerComplaint.includes("fraud") ||
+        lowerComplaint.includes("failed") ||
+        lowerComplaint.includes("broken") ||
+        lowerComplaint.includes("missing") ||
+        lowerComplaint.includes("invalid") ||
+        lowerComplaint.includes("not working") ||
+        lowerComplaint.includes("link") ||
+        lowerComplaint.includes("404") ||
+        lowerComplaint.includes("wrong") ||
+        lowerComplaint.includes("کار نمیکنه") ||
+        lowerComplaint.includes("لینک") ||
+        lowerComplaint.includes("وجود نداره") ||
+        lowerComplaint.includes("جعلی") ||
+        lowerComplaint.includes("خراب") ||
+        lowerComplaint.includes("تحویل نداد") ||
+        lowerComplaint.includes("مشکل") ||
+        lowerComplaint.includes("اشتباه");
+
+      const isSplitComplaint =
+        lowerComplaint.includes("partial") ||
+        lowerComplaint.includes("incomplete") ||
+        lowerComplaint.includes("half") ||
+        lowerComplaint.includes("delay") ||
+        lowerComplaint.includes("ناقص") ||
+        lowerComplaint.includes("تاخیر") ||
+        lowerComplaint.includes("بخشی");
+
+      if (isInvalidProof || isRefundComplaint) {
         decision = "REFUND";
-        summary = "Contractor failed to adhere to core contractual specs. Verifiable proof is missing or critically defective. 100% refund awarded to buyer.";
+        summary = "AI Validator Verdict: Submitted deliverable proof is unverifiable, broken, or invalid (e.g., non-existent repository/link). Contractor failed contractual obligations. 100% refund awarded to buyer.";
         status = 3;
-        conf = 96;
-      } else if (lower.includes("partial") || lower.includes("incomplete") || lower.includes("half") || lower.includes("delay")) {
+        conf = 97;
+      } else if (isSplitComplaint) {
         decision = "SPLIT";
-        summary = "Substantial progress delivered but key components incomplete. Balanced 50/50 resolution awarded.";
+        summary = "AI Validator Verdict: Substantial progress delivered but key components incomplete. Balanced 50/50 resolution awarded.";
         status = 4;
-        conf = 88;
+        conf = 89;
       }
 
       setEscrows(escrows.map(e => {
