@@ -227,21 +227,36 @@ export default function Home() {
   const [proposalInput, setProposalInput] = useState("");
   const [isApplying, setIsApplying] = useState(false);
 
-  // Handle Reset / Clear All Escrows
+  // Handle Reset / Clear Escrows created by current user
   const handleResetEscrows = async () => {
-    if (!confirm("Are you sure you want to reset and clear all escrows to start fresh?")) return;
-    setEscrows([]);
+    if (!account) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    const myEscrows = escrows.filter(
+      (e) => e.buyer.toLowerCase() === account.toLowerCase()
+    );
+    if (myEscrows.length === 0) {
+      alert("You don't have any created escrows to remove.");
+      return;
+    }
+    if (!confirm(`Are you sure you want to remove ${myEscrows.length} escrow(s) created by your wallet (${account.slice(0, 6)}...${account.slice(-4)})?`)) return;
+
+    const remaining = escrows.filter(
+      (e) => e.buyer.toLowerCase() !== account.toLowerCase()
+    );
+    setEscrows(remaining);
     if (typeof window !== "undefined") {
-      localStorage.removeItem("genlayer_escrows");
+      localStorage.setItem("genlayer_escrows", JSON.stringify(remaining));
     }
     try {
       await fetch("/api/escrows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escrows: [] })
+        body: JSON.stringify({ escrows: remaining })
       });
     } catch (err) {
-      console.error("Failed to reset escrows on server", err);
+      console.error("Failed to update escrows on server", err);
     }
   };
 
@@ -723,10 +738,10 @@ export default function Home() {
                 type="button"
                 onClick={handleResetEscrows}
                 className="text-xs px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5 transition cursor-pointer"
-                title="Clear and reset all agreements across all browsers"
+                title="Remove only the escrows created by your connected wallet"
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Reset All Escrows
+                Clear My Escrows
               </button>
             </div>
           </div>
