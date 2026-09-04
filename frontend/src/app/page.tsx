@@ -264,29 +264,12 @@ export default function Home() {
     setIsCreating(true);
 
     try {
-      // Calculate Wei value in hex (18 decimals for GEN)
-      const weiValue = BigInt(Math.floor(numAmount * 1e18));
-      const hexValue = "0x" + weiValue.toString(16);
-
-      // Trigger actual on-chain transaction in MetaMask to transfer GEN to contract
-      let txHash = "";
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        txHash = await (window as any).ethereum.request({
-          method: "eth_sendTransaction",
-          params: [
-            {
-              from: account,
-              to: CONTRACT_ADDRESS,
-              value: hexValue,
-              data: "0x"
-            }
-          ]
-        });
-      }
-
       const isBounty = escrowMode === "bounty";
       const assignedSeller = isBounty ? "0x0000000000000000000000000000000000000000" : newSeller;
 
+      // NOTE: In a real smart contract escrow, funds would be locked on-chain here.
+      // In this demo, the escrow is recorded virtually. The actual GEN transfer
+      // happens when the buyer approves delivery (buyer → seller directly).
       const newRecord: EscrowRecord = {
         id: escrows.length + 1,
         buyer: account,
@@ -298,25 +281,27 @@ export default function Home() {
         delivery: "",
         verdict_summary: isBounty
           ? "Open public bounty created on GenLayer. Freelancers can apply with proposals for buyer review."
-          : "Direct escrow deposited and locked on GenLayer Bradbury. Awaiting contractor work submission.",
+          : "Escrow registered on GenLayer Bradbury. Awaiting contractor work submission. Funds will be released on approval.",
         confidence: 0,
-        txHash: txHash || undefined,
+        txHash: undefined,
         escrowMode: escrowMode,
         applicants: []
       };
 
-      setEscrows([newRecord, ...escrows]);
+      const updatedEscrows = [newRecord, ...escrows];
+      setEscrows(updatedEscrows);
+      await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escrows: updatedEscrows })
+      });
       setNewTitle("");
       setNewSeller("");
       setNewAmount("");
       setNewSpec("");
     } catch (err: any) {
-      console.error("MetaMask transaction error:", err);
-      if (err.code === 4001) {
-        alert("Transaction was rejected in MetaMask.");
-      } else {
-        alert(`Transaction failed: ${err.message || "Unknown error"}`);
-      }
+      console.error("Error creating escrow:", err);
+      alert(`Failed to create escrow: ${err.message || "Unknown error"}`);
     } finally {
       setIsCreating(false);
     }
@@ -420,7 +405,7 @@ export default function Home() {
     }, 1000);
   };
 
-  // Handle Manual Approval — funds were already locked at escrow creation; just release state
+  // Handle Manual Approval — sends actual GEN from buyer wallet → seller wallet
   const handleApprove = async (id: number) => {
     const escrow = escrows.find(e => e.id === id);
     if (!escrow) return;
@@ -432,27 +417,50 @@ export default function Home() {
     }
 
     const rawAmount = parseFloat(escrow.amount.replace(/[^0-9.]/g, ""));
+    if (isNaN(rawAmount) || rawAmount <= 0) {
+      alert("Invalid escrow amount.");
+      return;
+    }
 
-    // NOTE: Funds were already deposited to the escrow contract when the task was created.
-    // In a real smart contract, the contract itself releases to seller here.
-    // We just update the status to "Released" without a second transaction.
-    const updatedEscrows = escrows.map(e => {
-      if (e.id === id) {
-        return {
-          ...e,
-          status: 2,
-          verdict_summary: `Buyer verified & approved delivery. ${rawAmount} GEN released from escrow contract to seller (${sellerAddress.slice(0, 10)}...).`
-        };
+    try {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const weiValue = BigInt(Math.floor(rawAmount * 1e18));
+        const hexValue = "0x" + weiValue.toString(16);
+
+        // Single real payment: buyer → seller
+        const txHash = await (window as any).ethereum.request({
+          method: "eth_sendTransaction",
+          params: [{ from: account, to: sellerAddress, value: hexValue, data: "0x" }]
+        });
+
+        const updatedEscrows = escrows.map(e => {
+          if (e.id === id) {
+            return {
+              ...e,
+              status: 2,
+              txHash,
+              verdict_summary: `Buyer verified & approved delivery. ${rawAmount} GEN sent to seller (Tx: ${txHash.slice(0, 14)}...).`
+            };
+          }
+          return e;
+        });
+        setEscrows(updatedEscrows);
+        await fetch("/api/escrows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ escrows: updatedEscrows })
+        });
+        alert(`✅ ${rawAmount} GEN sent to contractor ${sellerAddress.slice(0, 10)}...`);
+      } else {
+        alert("MetaMask not found.");
       }
-      return e;
-    });
-    setEscrows(updatedEscrows);
-    await fetch("/api/escrows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ escrows: updatedEscrows })
-    });
-    alert(`✅ Funds released to contractor ${sellerAddress.slice(0, 10)}...`);
+    } catch (err: any) {
+      if (err.code === 4001) {
+        alert("Transaction rejected in MetaMask.");
+      } else {
+        alert(`Transaction failed: ${err.message || "Unknown error"}`);
+      }
+    }
   };
 
   // Handle Trigger AI Dispute Resolution

@@ -197,6 +197,21 @@ Provide your output ONLY in valid JSON format:
         self.verdict_summaries[escrow_id] = f"[{decision}] {summary}"
         self.confidence_scores[escrow_id] = u8(min(100, max(0, confidence)))
 
+    @gl.public.write
+    def reopen_task(self, escrow_id: u64) -> None:
+        sender = gl.message.sender_address
+        buyer = self.buyers.get(escrow_id)
+        assert sender == buyer, "Only buyer can re-open task"
+        current_status = self.statuses.get(escrow_id, 255)
+        assert current_status == 3, "Only refunded/disputed tasks can be re-opened"
+
+        self.sellers[escrow_id] = Address("0x0000000000000000000000000000000000000000")
+        self.statuses[escrow_id] = 5  # OPEN_FOR_APPLICANTS
+        self.deliveries[escrow_id] = ""
+        self.applicants[escrow_id] = "[]"
+        self.confidence_scores[escrow_id] = 0
+        self.verdict_summaries[escrow_id] = "Task re-opened after failed delivery. Previous contractor removed. Accepting new applications."
+
     @gl.public.view
     def get_escrow(self, escrow_id: u64) -> dict:
         return {
