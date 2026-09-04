@@ -420,18 +420,71 @@ export default function Home() {
     }, 1000);
   };
 
-  // Handle Manual Approval
-  const handleApprove = (id: number) => {
-    setEscrows(escrows.map(e => {
-      if (e.id === id) {
-        return {
-          ...e,
-          status: 2,
-          verdict_summary: "Buyer verified & approved delivery. Funds released to seller."
-        };
+  // Handle Manual Approval — sends real GEN to seller wallet via MetaMask
+  const handleApprove = async (id: number) => {
+    const escrow = escrows.find(e => e.id === id);
+    if (!escrow) return;
+
+    const sellerAddress = escrow.seller;
+    if (!sellerAddress || sellerAddress === "0x0000000000000000000000000000000000000000") {
+      alert("No contractor assigned. Cannot release funds.");
+      return;
+    }
+
+    // Parse amount (e.g. "1 GEN" → 1.0)
+    const rawAmount = parseFloat(escrow.amount.replace(/[^0-9.]/g, ""));
+    if (isNaN(rawAmount) || rawAmount <= 0) {
+      alert("Invalid escrow amount.");
+      return;
+    }
+
+    try {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        const weiValue = BigInt(Math.floor(rawAmount * 1e18));
+        const hexValue = "0x" + weiValue.toString(16);
+
+        // Send GEN directly to seller wallet
+        const txHash = await (window as any).ethereum.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: account,
+              to: sellerAddress,
+              value: hexValue,
+              data: "0x"
+            }
+          ]
+        });
+
+        const updatedEscrows = escrows.map(e => {
+          if (e.id === id) {
+            return {
+              ...e,
+              status: 2,
+              txHash: txHash,
+              verdict_summary: `Buyer verified & approved delivery. ${rawAmount} GEN released to seller (Tx: ${txHash.slice(0,10)}...).`
+            };
+          }
+          return e;
+        });
+        setEscrows(updatedEscrows);
+        // Broadcast to API
+        await fetch("/api/escrows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ escrows: updatedEscrows })
+        });
+        alert(`✅ ${rawAmount} GEN sent to contractor ${sellerAddress.slice(0, 10)}...`);
+      } else {
+        alert("MetaMask not found.");
       }
-      return e;
-    }));
+    } catch (err: any) {
+      if (err.code === 4001) {
+        alert("Transaction rejected in MetaMask.");
+      } else {
+        alert(`Transaction failed: ${err.message || "Unknown error"}`);
+      }
+    }
   };
 
   // Handle Trigger AI Dispute Resolution
@@ -451,7 +504,7 @@ export default function Home() {
       setAiAnalysisLog("GenLayer equivalence validators cross-checking verdict and judicial confidence score...");
     }, 3000);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       const lowerComplaint = complaintInput.toLowerCase();
       const currentEscrow = escrows.find((e) => e.id === id);
       const delivery = (currentEscrow?.delivery || "").toLowerCase();
@@ -511,17 +564,64 @@ export default function Home() {
         conf = 89;
       }
 
-      setEscrows(escrows.map(e => {
+      // Execute on-chain transfer based on AI verdict
+      let txHash = "";
+      try {
+        if (currentEscrow && typeof window !== "undefined" && (window as any).ethereum) {
+          const rawAmount = parseFloat(currentEscrow.amount.replace(/[^0-9.]/g, ""));
+          const sellerAddr = currentEscrow.seller;
+          const buyerAddr = currentEscrow.buyer;
+
+          if (!isNaN(rawAmount) && rawAmount > 0) {
+            if (decision === "RELEASE" && sellerAddr && sellerAddr !== "0x0000000000000000000000000000000000000000") {
+              // Send full amount to seller
+              const hexVal = "0x" + BigInt(Math.floor(rawAmount * 1e18)).toString(16);
+              txHash = await (window as any).ethereum.request({
+                method: "eth_sendTransaction",
+                params: [{ from: account, to: sellerAddr, value: hexVal, data: "0x" }]
+              });
+              setAiAnalysisLog(`✅ ${rawAmount} GEN sent to contractor. Tx: ${txHash.slice(0, 14)}...`);
+            } else if (decision === "SPLIT" && sellerAddr && sellerAddr !== "0x0000000000000000000000000000000000000000") {
+              // Send half to seller
+              const halfHex = "0x" + BigInt(Math.floor((rawAmount / 2) * 1e18)).toString(16);
+              txHash = await (window as any).ethereum.request({
+                method: "eth_sendTransaction",
+                params: [{ from: account, to: sellerAddr, value: halfHex, data: "0x" }]
+              });
+              setAiAnalysisLog(`✅ ${rawAmount / 2} GEN sent to contractor (50/50 split). Tx: ${txHash.slice(0, 14)}...`);
+            } else if (decision === "REFUND") {
+              // Refund to buyer — note: in real smart contract, contract sends back to buyer
+              // Here buyer already has funds (contract model), so just mark it
+              setAiAnalysisLog(`✅ REFUND verdict recorded. Funds returned to buyer (${buyerAddr?.slice(0, 10)}...).`);
+            }
+          }
+        }
+      } catch (err: any) {
+        if (err.code === 4001) {
+          setAiAnalysisLog("⚠️ MetaMask transaction rejected by user.");
+        } else {
+          setAiAnalysisLog(`⚠️ Transfer error: ${err.message}`);
+        }
+      }
+
+      const updatedEscrows = escrows.map(e => {
         if (e.id === id) {
           return {
             ...e,
             status,
             confidence: conf,
+            txHash: txHash || e.txHash,
             verdict_summary: `[${decision}] ${summary}`
           };
         }
         return e;
-      }));
+      });
+      setEscrows(updatedEscrows);
+      await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escrows: updatedEscrows })
+      });
 
       setIsResolvingAi(false);
       setAiAnalysisLog(null);
