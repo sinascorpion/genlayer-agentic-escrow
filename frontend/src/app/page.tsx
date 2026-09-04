@@ -20,8 +20,7 @@ import {
   Users,
   Briefcase,
   UserCheck,
-  Globe,
-  Trash2
+  Globe
 } from "lucide-react";
 
 const CONTRACT_ADDRESS = "0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52";
@@ -92,20 +91,11 @@ export default function Home() {
       const res = await fetch("/api/escrows");
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data.escrows) && data.escrows.length > 0) {
-          setEscrows((prev) => {
-            // Merge server escrows with local, prioritizing server state
-            const map = new Map<number, EscrowRecord>();
-            data.escrows.forEach((e: EscrowRecord) => map.set(e.id, e));
-            prev.forEach((e: EscrowRecord) => {
-              if (!map.has(e.id)) map.set(e.id, e);
-            });
-            const merged = Array.from(map.values()).sort((a, b) => b.id - a.id);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("genlayer_escrows", JSON.stringify(merged));
-            }
-            return merged;
-          });
+        if (Array.isArray(data.escrows)) {
+          setEscrows(data.escrows);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("genlayer_escrows_v2", JSON.stringify(data.escrows));
+          }
         }
       }
     } catch (err) {
@@ -117,17 +107,13 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("genlayer_escrows");
+        // Clean legacy storage
+        localStorage.removeItem("genlayer_escrows");
+        const saved = localStorage.getItem("genlayer_escrows_v2");
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) {
+          if (Array.isArray(parsed)) {
             setEscrows(parsed);
-            // Push locally saved to server
-            fetch("/api/escrows", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ escrows: parsed })
-            }).catch(() => {});
           }
         }
       } catch (err) {
@@ -164,7 +150,7 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== "undefined" && escrows.length > 0) {
       try {
-        localStorage.setItem("genlayer_escrows", JSON.stringify(escrows));
+        localStorage.setItem("genlayer_escrows_v2", JSON.stringify(escrows));
       } catch (err) {
         console.error("Failed to save escrows to localStorage", err);
       }
@@ -226,39 +212,6 @@ export default function Home() {
   const [viewingApplicantsEscrow, setViewingApplicantsEscrow] = useState<EscrowRecord | null>(null);
   const [proposalInput, setProposalInput] = useState("");
   const [isApplying, setIsApplying] = useState(false);
-
-  // Handle Reset / Clear Escrows created by current user
-  const handleResetEscrows = async () => {
-    if (!account) {
-      alert("Please connect your wallet first.");
-      return;
-    }
-    const myEscrows = escrows.filter(
-      (e) => e.buyer.toLowerCase() === account.toLowerCase()
-    );
-    if (myEscrows.length === 0) {
-      alert("You don't have any created escrows to remove.");
-      return;
-    }
-    if (!confirm(`Are you sure you want to remove ${myEscrows.length} escrow(s) created by your wallet (${account.slice(0, 6)}...${account.slice(-4)})?`)) return;
-
-    const remaining = escrows.filter(
-      (e) => e.buyer.toLowerCase() !== account.toLowerCase()
-    );
-    setEscrows(remaining);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("genlayer_escrows", JSON.stringify(remaining));
-    }
-    try {
-      await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escrows: remaining })
-      });
-    } catch (err) {
-      console.error("Failed to update escrows on server", err);
-    }
-  };
 
   // Handle Create Escrow (Direct or Open Bounty)
   const handleCreateEscrow = async (e: React.FormEvent) => {
@@ -732,18 +685,7 @@ export default function Home() {
               <FileText className="h-5 w-5 text-cyan-400" />
               Active On-Chain Escrows & Judicial Arbitration Cases
             </h2>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-400 font-mono hidden sm:inline">Real-time state from GenVM</span>
-              <button
-                type="button"
-                onClick={handleResetEscrows}
-                className="text-xs px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5 transition cursor-pointer"
-                title="Remove only the escrows created by your connected wallet"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                Clear My Escrows
-              </button>
-            </div>
+            <span className="text-xs text-slate-400 font-mono">Real-time state from GenVM</span>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
