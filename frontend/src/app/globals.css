@@ -1,0 +1,8 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #07090e;
+  color: #f8fafc;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+* { box-sizing: border-box; }
