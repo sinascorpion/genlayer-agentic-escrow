@@ -20,7 +20,8 @@ import {
   Users,
   Briefcase,
   UserCheck,
-  Globe
+  Globe,
+  Trash2
 } from "lucide-react";
 
 const CONTRACT_ADDRESS = "0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52";
@@ -225,6 +226,24 @@ export default function Home() {
   const [viewingApplicantsEscrow, setViewingApplicantsEscrow] = useState<EscrowRecord | null>(null);
   const [proposalInput, setProposalInput] = useState("");
   const [isApplying, setIsApplying] = useState(false);
+
+  // Handle Reset / Clear All Escrows
+  const handleResetEscrows = async () => {
+    if (!confirm("Are you sure you want to reset and clear all escrows to start fresh?")) return;
+    setEscrows([]);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("genlayer_escrows");
+    }
+    try {
+      await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escrows: [] })
+      });
+    } catch (err) {
+      console.error("Failed to reset escrows on server", err);
+    }
+  };
 
   // Handle Create Escrow (Direct or Open Bounty)
   const handleCreateEscrow = async (e: React.FormEvent) => {
@@ -698,7 +717,18 @@ export default function Home() {
               <FileText className="h-5 w-5 text-cyan-400" />
               Active On-Chain Escrows & Judicial Arbitration Cases
             </h2>
-            <span className="text-xs text-slate-400 font-mono">Real-time state from GenVM</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-slate-400 font-mono hidden sm:inline">Real-time state from GenVM</span>
+              <button
+                type="button"
+                onClick={handleResetEscrows}
+                className="text-xs px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1.5 transition cursor-pointer"
+                title="Clear and reset all agreements across all browsers"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Reset All Escrows
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
