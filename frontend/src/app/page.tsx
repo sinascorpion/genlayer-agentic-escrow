@@ -56,13 +56,13 @@ export default function Home() {
     {
       id: 1,
       buyer: "0x67B8Db39d0cB04Ec9e87aC265aCe06DF07B704A7",
-      seller: "0x98A1...41F2",
+      seller: "0xa467...0d1a",
       title: "Smart Contract Security Audit & Report",
       specifications: "Comprehensive formal audit of DeFi contracts with zero critical vulnerabilities and documented remediation proofs.",
       amount: "25 GEN",
-      status: 1,
-      delivery: "https://github.com/sinascorpion/audit-deliverables/blob/main/FINAL_AUDIT_REPORT.pdf - All 14 tests passing.",
-      verdict_summary: "Work submitted by contractor. Awaiting client release or autonomous AI arbitration.",
+      status: 0,
+      delivery: "",
+      verdict_summary: "Escrow created and locked on GenLayer Bradbury. Awaiting contractor work submission.",
       confidence: 0
     }
   ]);
