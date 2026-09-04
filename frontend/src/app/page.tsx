@@ -65,6 +65,32 @@ interface EscrowRecord {
   applicants?: Applicant[];
 }
 
+// Helper to automatically detect URLs and render them as clickable links
+function renderClickableContent(text: string) {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, index) => {
+    if (part.match(urlRegex)) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cyan-400 hover:text-cyan-300 underline inline-flex items-center gap-0.5 break-all font-medium transition hover:brightness-110"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+          <ExternalLink className="h-3 w-3 inline-block ml-0.5 shrink-0" />
+        </a>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
 export default function Home() {
   const [account, setAccount] = useState<string | null>(null);
   const [escrows, setEscrows] = useState<EscrowRecord[]>([]);
@@ -297,7 +323,7 @@ export default function Home() {
   };
 
   // Handle Apply for Bounty Task
-  const handleApplyForTask = (id: number) => {
+  const handleApplyForTask = async (id: number) => {
     if (!account) {
       alert("Please connect your wallet first to submit an application.");
       return;
@@ -308,8 +334,8 @@ export default function Home() {
     }
 
     setIsApplying(true);
-    setTimeout(() => {
-      setEscrows(escrows.map(e => {
+    try {
+      const updatedEscrows = escrows.map(e => {
         if (e.id === id) {
           const currentApplicants = e.applicants || [];
           if (currentApplicants.some(a => a.address.toLowerCase() === account.toLowerCase())) {
@@ -329,11 +355,28 @@ export default function Home() {
           };
         }
         return e;
-      }));
-      setIsApplying(false);
+      });
+
+      setEscrows(updatedEscrows);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("genlayer_escrows_v2", JSON.stringify(updatedEscrows));
+      }
+
+      // Immediately broadcast to API
+      await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ escrows: updatedEscrows })
+      });
+
       setProposalInput("");
       setApplyingEscrow(null);
-    }, 600);
+      alert("Application and proposal submitted successfully! The buyer can now review your application.");
+    } catch (err) {
+      console.error("Failed to submit application", err);
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   // Handle Assign Contractor by Buyer
@@ -791,8 +834,8 @@ export default function Home() {
                     <span className="text-slate-400 font-medium block text-xs uppercase tracking-wider mb-1">
                       Agreed Specifications:
                     </span>
-                    <p className="bg-[#121520] p-3 rounded-xl border border-slate-800/60 font-mono text-xs text-slate-300">
-                      {escrow.specifications}
+                    <p className="bg-[#121520] p-3 rounded-xl border border-slate-800/60 font-sans text-xs text-slate-300 break-words leading-relaxed">
+                      {renderClickableContent(escrow.specifications)}
                     </p>
                   </div>
 
@@ -801,8 +844,8 @@ export default function Home() {
                       <span className="text-slate-400 font-medium block text-xs uppercase tracking-wider mb-1">
                         Contractor Deliverable Proof:
                       </span>
-                      <p className="bg-[#121520] p-3 rounded-xl border border-cyan-500/20 font-mono text-xs text-cyan-200 break-all">
-                        {escrow.delivery}
+                      <p className="bg-[#121520] p-3 rounded-xl border border-cyan-500/20 font-sans text-xs text-cyan-200 break-words leading-relaxed">
+                        {renderClickableContent(escrow.delivery)}
                       </p>
                     </div>
                   )}
@@ -1137,8 +1180,8 @@ export default function Home() {
 
                       <div className="text-xs text-slate-300 font-sans leading-relaxed">
                         <span className="text-slate-400 font-medium block text-[11px] uppercase mb-0.5">Proposal / Resume:</span>
-                        <p className="bg-[#0e111a] p-2.5 rounded-lg border border-slate-800/60 font-mono text-xs">
-                          {applicant.proposal}
+                        <p className="bg-[#0e111a] p-2.5 rounded-lg border border-slate-800/60 font-sans text-xs break-words leading-relaxed">
+                          {renderClickableContent(applicant.proposal)}
                         </p>
                       </div>
 
