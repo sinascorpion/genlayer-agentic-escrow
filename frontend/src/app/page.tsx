@@ -476,19 +476,39 @@ export default function Home() {
       const lowerComplaint = complaintInput.toLowerCase();
       const currentEscrow = escrows.find((e) => e.id === id);
       const delivery = (currentEscrow?.delivery || "").toLowerCase();
+      const specs = (currentEscrow?.specifications || "").toLowerCase();
 
       let decision = "RELEASE";
       let summary = "Delivered deliverables satisfy primary contractual specifications. Slight variations are within standard acceptable tolerance.";
       let status = 2;
       let conf = 92;
 
-      // Check for broken links, fake links, missing deliverables, or complaints in Persian/English
-      const isInvalidProof =
-        delivery.includes("test") ||
-        delivery.includes("example.com") ||
-        delivery.includes("fake") ||
+      // ── Step 1: Evaluate delivery proof quality ──────────────────────────────
+      // Clearly invalid/fake delivery proof
+      const hasInvalidDelivery =
         delivery === "" ||
-        delivery === "https://github.com/test";
+        delivery === "https://github.com/test" ||
+        delivery.includes("example.com") ||
+        delivery.includes("/test") ||
+        delivery.includes("fake") ||
+        delivery.includes("placeholder") ||
+        delivery.includes("lorem") ||
+        delivery.includes("todo");
+
+      // Looks like a real delivery (has a real domain, not a test repo)
+      const hasValidDelivery =
+        delivery !== "" &&
+        !hasInvalidDelivery &&
+        (delivery.startsWith("http://") || delivery.startsWith("https://"));
+
+      // ── Step 2: Evaluate buyer complaint intent ───────────────────────────────
+      const isVagueOrUnfairComplaint =
+        lowerComplaint.includes("don't like") ||
+        lowerComplaint.includes("changed mind") ||
+        lowerComplaint.includes("نمیخوام") ||
+        lowerComplaint.includes("پشیمون") ||
+        lowerComplaint.includes("بد شد") ||
+        lowerComplaint.includes("نظرم عوض");
 
       const isRefundComplaint =
         lowerComplaint.includes("fake") ||
@@ -499,17 +519,21 @@ export default function Home() {
         lowerComplaint.includes("missing") ||
         lowerComplaint.includes("invalid") ||
         lowerComplaint.includes("not working") ||
+        lowerComplaint.includes("not delivered") ||
         lowerComplaint.includes("link") ||
         lowerComplaint.includes("404") ||
         lowerComplaint.includes("wrong") ||
+        lowerComplaint.includes("unrelated") ||
         lowerComplaint.includes("کار نمیکنه") ||
         lowerComplaint.includes("لینک") ||
         lowerComplaint.includes("وجود نداره") ||
         lowerComplaint.includes("جعلی") ||
         lowerComplaint.includes("خراب") ||
         lowerComplaint.includes("تحویل نداد") ||
-        lowerComplaint.includes("مشکل") ||
-        lowerComplaint.includes("اشتباه");
+        lowerComplaint.includes("مشکل داره") ||
+        lowerComplaint.includes("اشتباه") ||
+        lowerComplaint.includes("نامرتبط") ||
+        lowerComplaint.includes("غیر مرتبط");
 
       const isSplitComplaint =
         lowerComplaint.includes("partial") ||
@@ -520,11 +544,25 @@ export default function Home() {
         lowerComplaint.includes("تاخیر") ||
         lowerComplaint.includes("بخشی");
 
-      if (isInvalidProof || isRefundComplaint) {
+      // ── Step 3: Two-sided verdict logic ──────────────────────────────────────
+      if (hasValidDelivery && isVagueOrUnfairComplaint) {
+        // Contractor delivered valid proof, buyer complaint is vague/unfair → protect contractor
+        decision = "RELEASE";
+        summary = "AI Validator Verdict: Contractor submitted a verifiable deliverable that meets primary specifications. Buyer complaint lacks objective evidence of failure. Funds released to contractor. (Unfair dispute rejected.)";
+        status = 2;
+        conf = 94;
+      } else if (hasInvalidDelivery || (!hasValidDelivery && isRefundComplaint)) {
+        // Delivery is empty/fake OR complaint is legitimate about real failures
         decision = "REFUND";
-        summary = "AI Validator Verdict: Submitted deliverable proof is unverifiable, broken, or invalid (e.g., non-existent repository/link). Contractor failed contractual obligations. 100% refund awarded to buyer.";
+        summary = "AI Validator Verdict: Submitted deliverable proof is unverifiable, broken, or invalid. Contractor failed contractual obligations. Escrow flagged for re-assignment. Buyer may re-open task for new applicants.";
         status = 3;
         conf = 97;
+      } else if (hasValidDelivery && isRefundComplaint) {
+        // Delivery looks real but buyer has a specific complaint → split 50/50
+        decision = "SPLIT";
+        summary = "AI Validator Verdict: Deliverable partially satisfies specifications but buyer reports substantive issues. Balanced 50/50 resolution awarded as fair compromise.";
+        status = 4;
+        conf = 86;
       } else if (isSplitComplaint) {
         decision = "SPLIT";
         summary = "AI Validator Verdict: Substantial progress delivered but key components incomplete. Balanced 50/50 resolution awarded.";
@@ -558,6 +596,31 @@ export default function Home() {
       setComplaintInput("");
       setSelectedEscrow(null);
     }, 4500);
+  };
+
+  // Handle Re-open Task after REFUND — resets to Open Bounty so new freelancers can apply
+  const handleReopenTask = async (id: number) => {
+    const updatedEscrows = escrows.map(e => {
+      if (e.id === id) {
+        return {
+          ...e,
+          status: 5, // OPEN_FOR_APPLICANTS
+          seller: "0x0000000000000000000000000000000000000000",
+          delivery: "",
+          confidence: 0,
+          applicants: [],
+          verdict_summary: "Task re-opened after failed delivery. Previous contractor removed. Accepting new applications from freelancers."
+        };
+      }
+      return e;
+    });
+    setEscrows(updatedEscrows);
+    await fetch("/api/escrows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ escrows: updatedEscrows })
+    });
+    alert("✅ Task re-opened! Freelancers can now apply again.");
   };
 
   return (
@@ -923,6 +986,16 @@ export default function Home() {
                           </button>
                         )}
                       </>
+                    )}
+
+                    {escrow.status === 3 && account && account.toLowerCase() === escrow.buyer.toLowerCase() && (
+                      <button
+                        onClick={() => handleReopenTask(escrow.id)}
+                        className="text-xs px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-semibold transition flex items-center gap-1.5 shadow-sm"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                        Re-open Task for New Applicants
+                      </button>
                     )}
 
                     {escrow.status === 0 && (
