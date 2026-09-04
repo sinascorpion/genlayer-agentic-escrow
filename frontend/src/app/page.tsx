@@ -1152,7 +1152,10 @@ export default function Home() {
             </div>
 
             <div className="overflow-y-auto space-y-3 flex-1 pr-1">
-              {(!viewingApplicantsEscrow.applicants || viewingApplicantsEscrow.applicants.length === 0) ? (
+              {(() => {
+                const liveEscrow = escrows.find(e => e.id === viewingApplicantsEscrow.id) || viewingApplicantsEscrow;
+                const liveApplicants = liveEscrow.applicants || [];
+                return (!liveApplicants || liveApplicants.length === 0) ? (
                 <div className="p-8 text-center space-y-2 border border-dashed border-slate-800 rounded-xl">
                   <Users className="h-6 w-6 text-slate-600 mx-auto" />
                   <p className="text-xs text-slate-400">No applicants have submitted proposals yet.</p>
@@ -1161,8 +1164,8 @@ export default function Home() {
                   </p>
                 </div>
               ) : (
-                viewingApplicantsEscrow.applicants.map((applicant, idx) => {
-                  const isBuyer = account && account.toLowerCase() === viewingApplicantsEscrow.buyer.toLowerCase();
+                liveApplicants.map((applicant, idx) => {
+                  const isBuyer = account && account.toLowerCase() === liveEscrow.buyer.toLowerCase();
                   return (
                     <div
                       key={idx}
@@ -1187,7 +1190,7 @@ export default function Home() {
 
                       <div className="flex justify-end pt-1">
                         <button
-                          onClick={() => handleAssignContractor(viewingApplicantsEscrow.id, applicant.address)}
+                          onClick={() => handleAssignContractor(liveEscrow.id, applicant.address)}
                           className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
                         >
                           <UserCheck className="h-3.5 w-3.5" />
@@ -1197,7 +1200,7 @@ export default function Home() {
                     </div>
                   );
                 })
-              )}
+              );})()}
             </div>
 
             <div className="flex justify-end border-t border-slate-800 pt-3">
