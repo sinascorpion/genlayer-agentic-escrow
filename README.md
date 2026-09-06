@@ -59,7 +59,11 @@ In traditional commerce and freelance platforms (such as Upwork, Fiverr, and tra
 - **Dual Escrow Modes**:
   - **Open Public Bounty**: Buyers post specifications with locked GEN rewards without needing a freelancer address upfront. Candidates apply with proposals and resumes. The buyer reviews and assigns the best candidate.
   - **Direct Private Escrow**: Buyers specify a designated contractor address upfront for bilateral agreements.
+- **Direct Web3 Deposit & Contract Custody**: Buyers approve a MetaMask transaction directly locking native GEN funds under Intelligent Contract custody (`escrow_locked_funds`).
+- **Real-Time On-Chain Transaction Tracking**: Visual progress bars directly inside each task card reporting validator status (`COMMITTING`, `REVEALING`, `ACCEPTED`) with live block explorer links.
 - **Contract-Controlled Financial Custody & Settlement**: Complete on-chain fund lifecycle management (`escrow_locked_funds`, `claimable_balances`, `withdraw_funds`, `reopen_task`).
+- **Instant Native GEN Payout**: Settled escrows automatically deliver native GEN payouts directly to the contractor wallet upon approval or judicial verdict.
+- **Role-Based Status Badging**: Displays `Delivered` for the designated freelancer and `Completed` for the client and public observers.
 - **End-to-End Escrow Lifecycle**: Create agreements, lock native GEN funds, review applicants, assign contractors, submit deliverables, release payment, or trigger arbitration.
 - **Natural Language Contract Specifications**: Parties can define deliverables in plain English or code specifications.
 - **Automated Evidence Assessment**: Evaluates URLs, commit hashes, documents, and technical requirements.
