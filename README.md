@@ -3,7 +3,7 @@
 > **Autonomous AI-Powered Judicial Dispute Resolution and Trustless Escrow Protocol on GenLayer**
 
 [![Live DApp](https://img.shields.io/badge/Live%20DApp-agenticescrow.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://agenticescrow.vercel.app)
-[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0xF9E1...ad52-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0xF9E1daf7be50c5b7e20a3811519c02064ae6ad52)
+[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0xee76...b555-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555)
 [![Network](https://img.shields.io/badge/GenLayer-Bradbury%20Testnet%20(4221)-8b5cf6?style=for-the-badge)](https://genlayer.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,7 @@
 **AgenticEscrow** is a next-generation decentralized escrow protocol powered by GenLayer's non-deterministic Intelligent Contracts. It combines decentralized smart contract security with autonomous AI multi-validator arbitration to eliminate human intermediaries, unfair dispute resolutions, and excessive platform commissions in digital commerce, software contracting, and freelancing.
 
 - 🌐 **Live Website / DApp**: [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app)
-- 📜 **Deployed Intelligent Contract**: [`0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52`](https://explorer-bradbury.genlayer.com/address/0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52)
+- 📜 **Deployed Intelligent Contract**: [`0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555`](https://explorer-bradbury.genlayer.com/address/0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555)
 - ⛓️ **Network**: GenLayer Bradbury Testnet (Chain ID: `4221` / `0x107d`)
 - 🔍 **Block Explorer**: [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com)
 
@@ -47,25 +47,27 @@ In traditional commerce and freelance platforms (such as Upwork, Fiverr, and tra
 
 **AgenticEscrow** is a decentralized application built natively on **GenLayer**. By leveraging GenLayer's non-deterministic AI consensus and Intelligent Contracts (`gl.nondet.exec_prompt` combined with strict `validator_fn` equivalence checks):
 
-- Decentralized AI Judiciary: Independent GenLayer validators run Large Language Models to evaluate contractual agreements against submitted deliverables and dispute claims.
-- Equivalence-Checked Consensus: Multiple validators independently analyze the evidence and reach consensus on a verdict (RELEASE, REFUND, or SPLIT) with confidence metrics.
-- Autonomous On-Chain Execution: Once consensus is achieved, funds and state transitions are executed automatically on-chain with zero human intermediaries.
+- **Contract-Controlled Custody & Settlement**: The contract directly custodies locked funds upon creation (`escrow_locked_funds`) and settles funds upon manual buyer approval or AI judicial verdict (100% Release, 100% Refund, or 50/50 Split) into `claimable_balances`, with beneficiary withdrawal via `withdraw_funds()`.
+- **Decentralized AI Judiciary**: Independent GenLayer validators run Large Language Models to evaluate contractual agreements against submitted deliverables and dispute claims.
+- **Equivalence-Checked Consensus**: Multiple validators independently analyze the evidence and reach consensus on a verdict (RELEASE, REFUND, or SPLIT) with confidence metrics.
+- **Autonomous On-Chain Execution**: Once consensus is achieved, funds and state transitions are executed automatically on-chain with zero human intermediaries.
 
 ---
 
 ## Key Features
 
-- Dual Escrow Modes:
+- **Dual Escrow Modes**:
   - **Open Public Bounty**: Buyers post specifications with locked GEN rewards without needing a freelancer address upfront. Candidates apply with proposals and resumes. The buyer reviews and assigns the best candidate.
   - **Direct Private Escrow**: Buyers specify a designated contractor address upfront for bilateral agreements.
-- End-to-End Escrow Lifecycle: Create agreements, lock native GEN funds, review applicants, assign contractors, submit deliverables, release payment, or trigger arbitration.
-- Natural Language Contract Specifications: Parties can define deliverables in plain English or code specifications.
-- Automated Evidence Assessment: Evaluates URLs, commit hashes, documents, and technical requirements.
-- Three-Way Judicial Verdicts:
-  - `RELEASE`: Contractor successfully delivered according to specifications (100% payment to seller).
-  - `REFUND`: Contractor failed to deliver or submitted fraudulent proof (100% refund to buyer).
-  - `SPLIT`: Partial delivery with shared responsibility (50/50 balanced resolution).
-- Consensus Confidence Scoring: Every judgment records a validator confidence score (0-100%) and a judicial reasoning summary on-chain.
+- **Contract-Controlled Financial Custody & Settlement**: Complete on-chain fund lifecycle management (`escrow_locked_funds`, `claimable_balances`, `withdraw_funds`, `reopen_task`).
+- **End-to-End Escrow Lifecycle**: Create agreements, lock native GEN funds, review applicants, assign contractors, submit deliverables, release payment, or trigger arbitration.
+- **Natural Language Contract Specifications**: Parties can define deliverables in plain English or code specifications.
+- **Automated Evidence Assessment**: Evaluates URLs, commit hashes, documents, and technical requirements.
+- **Three-Way Judicial Verdicts & Settlement**:
+  - `RELEASE`: Contractor successfully delivered according to specifications (100% custody settled to contractor).
+  - `REFUND`: Contractor failed to deliver or submitted fraudulent proof (100% custody refunded to buyer).
+  - `SPLIT`: Partial delivery with shared responsibility (50/50 balanced custody split).
+- **Consensus Confidence Scoring**: Every judgment records a validator confidence score (0-100%) and a judicial reasoning summary on-chain.
 
 ---
 
@@ -81,13 +83,13 @@ sequenceDiagram
 
     alt Mode 1: Open Public Bounty
         Buyer->>Contract: create_escrow(address(0), title, specs, amount)
-        Note over Contract: State: OPEN_FOR_APPLICANTS (5)
+        Note over Contract: State: OPEN_FOR_APPLICANTS (5), locked_funds = amount
         Freelancer->>Contract: apply_for_task(escrow_id, proposal)
         Buyer->>Contract: assign_contractor(escrow_id, selected_freelancer)
         Note over Contract: State: PENDING_SUBMISSION (0)
     else Mode 2: Direct Escrow
         Buyer->>Contract: create_escrow(contractor, title, specs, amount)
-        Note over Contract: State: PENDING_SUBMISSION (0)
+        Note over Contract: State: PENDING_SUBMISSION (0), locked_funds = amount
     end
     
     Freelancer->>Contract: submit_work(escrow_id, delivery_details)
@@ -95,14 +97,17 @@ sequenceDiagram
 
     alt Standard Approval (No Dispute)
         Buyer->>Contract: approve_and_release(escrow_id)
-        Note over Contract: State: RELEASED_TO_SELLER (2)
+        Note over Contract: State: RELEASED (2), 100% locked_funds -> contractor claimable_balance
     else Dispute Raised
         Buyer->>Contract: resolve_dispute_with_ai(escrow_id, buyer_complaint)
         Contract->>Validators: gl.nondet.exec_prompt(judicial_prompt)
         Validators->>Validators: validator_fn() equivalence check
         Validators-->>Contract: Consensus Verdict (RELEASE / REFUND / SPLIT)
-        Note over Contract: State: RESOLVED (2, 3, or 4) with Judicial Summary
+        Note over Contract: State: RESOLVED (2, 3, or 4), locked_funds settled to claimable_balances
     end
+
+    Freelancer->>Contract: withdraw_funds()
+    Note over Contract: Transfers settled balance to caller
 ```
 
 ---
@@ -115,13 +120,16 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 
 | Method | Type | Parameters | Description |
 | :--- | :--- | :--- | :--- |
-| `create_escrow` | `write` | seller: Address, title: str, specifications: str, amount: u256 | Creates a new escrow agreement (Direct or Open Bounty if seller is zero address) and locks state. |
+| `create_escrow` | `write` | seller: Address, title: str, specifications: str, amount: u256 | Creates a new escrow agreement and locks deposited funds in contract custody. |
 | `apply_for_task` | `write` | escrow_id: u64, proposal: str | Freelancers apply for open bounties with proposals and portfolio details. |
 | `assign_contractor` | `write` | escrow_id: u64, selected_contractor: Address | Buyer reviews candidate proposals and assigns the chosen contractor. |
 | `submit_work` | `write` | escrow_id: u64, delivery_details: str | Assigned contractor submits proof or deliverable links. |
-| `approve_and_release` | `write` | escrow_id: u64 | Buyer manually approves and releases funds. |
-| `resolve_dispute_with_ai` | `write` | escrow_id: u64, buyer_complaint: str | Triggers multi-validator LLM arbitration and consensus. |
-| `get_escrow` | `view` | escrow_id: u64 | Returns full escrow data, applicants list, verdicts, and confidence scores. |
+| `approve_and_release` | `write` | escrow_id: u64 | Buyer manually approves; contract settles 100% custody funds to seller claimable balance. |
+| `resolve_dispute_with_ai` | `write` | escrow_id: u64, buyer_complaint: str | Triggers multi-validator LLM arbitration and executes contract-controlled settlement (RELEASE 100%, REFUND 100%, or SPLIT 50/50). |
+| `reopen_task` | `write` | escrow_id: u64 | Buyer resets a refunded escrow back to open bounty mode, re-locking funds into contract custody. |
+| `withdraw_funds` | `write` | None | Beneficiary claims and withdraws their settled claimable balance. |
+| `get_claimable_balance` | `view` | user: Address | Returns settled claimable balance for a given wallet address. |
+| `get_escrow` | `view` | escrow_id: u64 | Returns full escrow data, locked custody funds, applicants list, verdicts, and confidence scores. |
 | `get_total_escrows` | `view` | None | Returns total number of escrows created. |
 
 ---
@@ -131,12 +139,12 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 | Parameter | Value |
 | :--- | :--- |
 | **Live Web App** | [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app) |
-| **Intelligent Contract Address** | [`0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52`](https://explorer-bradbury.genlayer.com/address/0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52) |
-| **Deployment Transaction** | [`0x028dff8894e5f773db9a8108b155fc4e797f2d31f2df4cf74f48ba4825141b47`](https://explorer-bradbury.genlayer.com) |
+| **Intelligent Contract Address** | [`0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555`](https://explorer-bradbury.genlayer.com/address/0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555) |
+| **Deployment Transaction** | [`0x79e970ed4d961d5e8325f259f8a6dd198a1705f97b81000bee4d6dce0369c42c`](https://explorer-bradbury.genlayer.com/tx/0x79e970ed4d961d5e8325f259f8a6dd198a1705f97b81000bee4d6dce0369c42c) |
 | **Network Name** | GenLayer Bradbury Testnet |
 | **Chain ID** | 4221 (0x107d) |
 | **RPC Endpoint** | https://rpc-bradbury.genlayer.com |
-| **Explorer** | [https://explorer-bradbury.genlayer.com/tx/0x028dff8894e5f773db9a8108b155fc4e797f2d31f2df4cf74f48ba4825141b47](https://explorer-bradbury.genlayer.com/tx/0x028dff8894e5f773db9a8108b155fc4e797f2d31f2df4cf74f48ba4825141b47) |
+| **Explorer** | [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com) |
 | **GitHub Repository** | [https://github.com/sinascorpion/genlayer-agentic-escrow](https://github.com/sinascorpion/genlayer-agentic-escrow) |
 
 ---

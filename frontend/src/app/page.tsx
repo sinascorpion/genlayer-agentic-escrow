@@ -23,7 +23,7 @@ import {
   Globe
 } from "lucide-react";
 
-const CONTRACT_ADDRESS = "0xF9E1daf7Be50c5B7e20A3811519c02064ae6ad52";
+const CONTRACT_ADDRESS = "0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555";
 const BRADBURY_RPC = "https://rpc-bradbury.genlayer.com";
 const CHAIN_EXPLORER = "https://explorer-bradbury.genlayer.com";
 
@@ -111,10 +111,15 @@ export default function Home() {
   const [isResolvingAi, setIsResolvingAi] = useState(false);
   const [aiAnalysisLog, setAiAnalysisLog] = useState<string | null>(null);
 
-  // Sync escrows across different browsers and devices via /api/escrows and localStorage
+  // Claimable Balance state
+  const [claimableBalance, setClaimableBalance] = useState<string>("0");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Sync escrows and claimable balance directly from on-chain contract via /api/escrows
   const syncWithServer = async () => {
     try {
-      const res = await fetch("/api/escrows");
+      const url = account ? `/api/escrows?user=${account}` : "/api/escrows";
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.escrows)) {
@@ -123,9 +128,12 @@ export default function Home() {
             localStorage.setItem("genlayer_escrows_v2", JSON.stringify(data.escrows));
           }
         }
+        if (data.claimableBalance !== undefined) {
+          setClaimableBalance(data.claimableBalance);
+        }
       }
     } catch (err) {
-      console.error("Failed to sync escrows with server", err);
+      console.error("Failed to sync escrows with on-chain contract", err);
     }
   };
 
@@ -133,7 +141,6 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       try {
-        // Clean legacy storage
         localStorage.removeItem("genlayer_escrows");
         const saved = localStorage.getItem("genlayer_escrows_v2");
         if (saved) {
@@ -146,9 +153,8 @@ export default function Home() {
         console.error("Failed to parse saved escrows", err);
       }
 
-      // Initial server sync and recurring poll every 3 seconds
       syncWithServer();
-      const interval = setInterval(syncWithServer, 3000);
+      const interval = setInterval(syncWithServer, 4000);
 
       if ((window as any).ethereum) {
         (window as any).ethereum.request({ method: "eth_accounts" })
@@ -170,25 +176,7 @@ export default function Home() {
 
       return () => clearInterval(interval);
     }
-  }, []);
-
-  // Persist escrows to localStorage and broadcast to /api/escrows whenever they update
-  useEffect(() => {
-    if (typeof window !== "undefined" && escrows.length > 0) {
-      try {
-        localStorage.setItem("genlayer_escrows_v2", JSON.stringify(escrows));
-      } catch (err) {
-        console.error("Failed to save escrows to localStorage", err);
-      }
-
-      // Notify server so other browsers pick it up
-      fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escrows })
-      }).catch(() => {});
-    }
-  }, [escrows]);
+  }, [account]);
 
   // Connect Web3 Wallet
   const connectWallet = async () => {
@@ -239,7 +227,7 @@ export default function Home() {
   const [proposalInput, setProposalInput] = useState("");
   const [isApplying, setIsApplying] = useState(false);
 
-  // Handle Create Escrow (Direct or Open Bounty)
+  // Handle Create Escrow on-chain (Direct or Open Bounty with contract custody)
   const handleCreateEscrow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!account) {
@@ -266,48 +254,40 @@ export default function Home() {
     try {
       const isBounty = escrowMode === "bounty";
       const assignedSeller = isBounty ? "0x0000000000000000000000000000000000000000" : newSeller;
+      const amountWei = (BigInt(Math.floor(numAmount * 1e6)) * BigInt(1e12)).toString();
 
-      // NOTE: In a real smart contract escrow, funds would be locked on-chain here.
-      // In this demo, the escrow is recorded virtually. The actual GEN transfer
-      // happens when the buyer approves delivery (buyer → seller directly).
-      const newRecord: EscrowRecord = {
-        id: escrows.length + 1,
-        buyer: account,
-        seller: assignedSeller,
-        title: newTitle,
-        specifications: newSpec,
-        amount: `${newAmount} GEN`,
-        status: isBounty ? 5 : 0, // 5 = OPEN_FOR_APPLICANTS, 0 = PENDING_SUBMISSION
-        delivery: "",
-        verdict_summary: isBounty
-          ? "Open public bounty created on GenLayer. Freelancers can apply with proposals for buyer review."
-          : "Escrow registered on GenLayer Bradbury. Awaiting contractor work submission. Funds will be released on approval.",
-        confidence: 0,
-        txHash: undefined,
-        escrowMode: escrowMode,
-        applicants: []
-      };
-
-      const updatedEscrows = [newRecord, ...escrows];
-      setEscrows(updatedEscrows);
-      await fetch("/api/escrows", {
+      const res = await fetch("/api/escrows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escrows: updatedEscrows })
+        body: JSON.stringify({
+          action: "create_escrow",
+          seller: assignedSeller,
+          title: newTitle,
+          specifications: newSpec,
+          amountWei: amountWei
+        })
       });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Contract call failed");
+      }
+
+      alert(`✅ On-chain Escrow created! Funds locked in contract custody. Tx: ${resData.txHash?.slice(0, 14)}...`);
       setNewTitle("");
       setNewSeller("");
       setNewAmount("");
       setNewSpec("");
+      await syncWithServer();
     } catch (err: any) {
-      console.error("Error creating escrow:", err);
+      console.error("Error creating on-chain escrow:", err);
       alert(`Failed to create escrow: ${err.message || "Unknown error"}`);
     } finally {
       setIsCreating(false);
     }
   };
 
-  // Handle Apply for Bounty Task
+  // Handle Apply for Bounty Task on-chain
   const handleApplyForTask = async (id: number) => {
     if (!account) {
       alert("Please connect your wallet first to submit an application.");
@@ -320,151 +300,129 @@ export default function Home() {
 
     setIsApplying(true);
     try {
-      const updatedEscrows = escrows.map(e => {
-        if (e.id === id) {
-          const currentApplicants = e.applicants || [];
-          if (currentApplicants.some(a => a.address.toLowerCase() === account.toLowerCase())) {
-            alert("You have already submitted an application for this task.");
-            return e;
-          }
-          return {
-            ...e,
-            applicants: [
-              ...currentApplicants,
-              {
-                address: account,
-                proposal: proposalInput,
-                appliedAt: new Date().toLocaleTimeString()
-              }
-            ]
-          };
-        }
-        return e;
-      });
-
-      setEscrows(updatedEscrows);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("genlayer_escrows_v2", JSON.stringify(updatedEscrows));
-      }
-
-      // Immediately broadcast to API
-      await fetch("/api/escrows", {
+      const res = await fetch("/api/escrows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escrows: updatedEscrows })
+        body: JSON.stringify({
+          action: "apply_for_task",
+          escrowId: id,
+          proposal: `${account}: ${proposalInput.trim()}`
+        })
       });
 
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Application submission failed");
+      }
+
+      alert(`✅ Proposal submitted to contract on Bradbury! Tx: ${resData.txHash?.slice(0, 14)}...`);
       setProposalInput("");
       setApplyingEscrow(null);
-      alert("Application and proposal submitted successfully! The buyer can now review your application.");
-    } catch (err) {
+      await syncWithServer();
+    } catch (err: any) {
       console.error("Failed to submit application", err);
+      alert(`Error applying: ${err.message || "Unknown error"}`);
     } finally {
       setIsApplying(false);
     }
   };
 
-  // Handle Assign Contractor by Buyer
-  const handleAssignContractor = (escrowId: number, contractorAddress: string) => {
-    setEscrows(escrows.map(e => {
-      if (e.id === escrowId) {
-        return {
-          ...e,
-          seller: contractorAddress,
-          status: 0, // PENDING_SUBMISSION
-          verdict_summary: `Contractor ${contractorAddress.slice(0, 8)}... chosen and assigned by buyer. Awaiting deliverable submission.`
-        };
+  // Handle Assign Contractor by Buyer on-chain
+  const handleAssignContractor = async (escrowId: number, contractorAddress: string) => {
+    try {
+      const res = await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assign_contractor",
+          escrowId,
+          contractor: contractorAddress
+        })
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Failed to assign contractor");
       }
-      return e;
-    }));
-    setViewingApplicantsEscrow(null);
+
+      alert(`✅ Contractor assigned on-chain! Tx: ${resData.txHash?.slice(0, 14)}...`);
+      setViewingApplicantsEscrow(null);
+      await syncWithServer();
+    } catch (err: any) {
+      console.error("Failed to assign contractor", err);
+      alert(`Error assigning: ${err.message || "Unknown error"}`);
+    }
   };
 
-  // Handle Submit Work
-  const handleSubmitWork = (id: number) => {
+  // Handle Submit Work on-chain
+  const handleSubmitWork = async (id: number) => {
     if (!deliveryInput) {
       alert("Please enter work delivery proof/links.");
       return;
     }
     setIsSubmittingWork(true);
-    setTimeout(() => {
-      setEscrows(escrows.map(e => {
-        if (e.id === id) {
-          return {
-            ...e,
-            status: 1,
-            delivery: deliveryInput,
-            verdict_summary: "Deliverables submitted. Awaiting client release or autonomous AI arbitration."
-          };
-        }
-        return e;
-      }));
-      setIsSubmittingWork(false);
+    try {
+      const res = await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "submit_work",
+          escrowId: id,
+          deliveryProof: deliveryInput
+        })
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Deliverable submission failed");
+      }
+
+      alert(`✅ Deliverables submitted on-chain to GenLayer! Tx: ${resData.txHash?.slice(0, 14)}...`);
       setDeliveryInput("");
       setSelectedEscrow(null);
-    }, 1000);
+      await syncWithServer();
+    } catch (err: any) {
+      console.error("Failed to submit deliverables", err);
+      alert(`Error submitting work: ${err.message || "Unknown error"}`);
+    } finally {
+      setIsSubmittingWork(false);
+    }
   };
 
-  // Handle Manual Approval — sends actual GEN from buyer wallet → seller wallet
+  // Handle Manual Approval — triggers contract-controlled release of locked custody funds to seller
   const handleApprove = async (id: number) => {
     const escrow = escrows.find(e => e.id === id);
     if (!escrow) return;
 
-    const sellerAddress = escrow.seller;
-    if (!sellerAddress || sellerAddress === "0x0000000000000000000000000000000000000000") {
-      alert("No contractor assigned. Cannot release funds.");
-      return;
-    }
-
-    const rawAmount = parseFloat(escrow.amount.replace(/[^0-9.]/g, ""));
-    if (isNaN(rawAmount) || rawAmount <= 0) {
-      alert("Invalid escrow amount.");
+    if (!confirm(`Are you sure you want to approve delivery and trigger contract-controlled release of ${escrow.amount} to the contractor?`)) {
       return;
     }
 
     try {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        const weiValue = BigInt(Math.floor(rawAmount * 1e18));
-        const hexValue = "0x" + weiValue.toString(16);
+      const res = await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "approve_and_release",
+          escrowId: id
+        })
+      });
 
-        // Single real payment: buyer → seller
-        const txHash = await (window as any).ethereum.request({
-          method: "eth_sendTransaction",
-          params: [{ from: account, to: sellerAddress, value: hexValue, data: "0x" }]
-        });
-
-        const updatedEscrows = escrows.map(e => {
-          if (e.id === id) {
-            return {
-              ...e,
-              status: 2,
-              txHash,
-              verdict_summary: `Buyer verified & approved delivery. ${rawAmount} GEN sent to seller (Tx: ${txHash.slice(0, 14)}...).`
-            };
-          }
-          return e;
-        });
-        setEscrows(updatedEscrows);
-        await fetch("/api/escrows", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ escrows: updatedEscrows })
-        });
-        alert(`✅ ${rawAmount} GEN sent to contractor ${sellerAddress.slice(0, 10)}...`);
-      } else {
-        alert("MetaMask not found.");
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Approve & release failed");
       }
+
+      alert(`✅ Verified delivery! Contract-controlled settlement executed: ${escrow.amount} credited to contractor claimable balance. Tx: ${resData.txHash?.slice(0, 14)}...`);
+      await syncWithServer();
     } catch (err: any) {
-      if (err.code === 4001) {
-        alert("Transaction rejected in MetaMask.");
-      } else {
-        alert(`Transaction failed: ${err.message || "Unknown error"}`);
-      }
+      console.error("Approval failed:", err);
+      alert(`Transaction failed: ${err.message || "Unknown error"}`);
     }
   };
 
-  // Handle Trigger AI Dispute Resolution
-  const handleTriggerAiDispute = (id: number) => {
+  // Handle Trigger AI Dispute Resolution — multi-validator LLM consensus with contract-controlled settlement (release, refund, split)
+  const handleTriggerAiDispute = async (id: number) => {
     if (!complaintInput) {
       alert("Please describe the dispute or complaint.");
       return;
@@ -472,163 +430,97 @@ export default function Home() {
     setIsResolvingAi(true);
     setAiAnalysisLog("Submitting dispute claim to GenLayer Non-Deterministic Consensus (gl.nondet.exec_prompt)...");
 
-    setTimeout(() => {
-      setAiAnalysisLog("Leader validator evaluating specifications vs delivery deliverables...");
-    }, 1500);
+    try {
+      setTimeout(() => {
+        setAiAnalysisLog("Leader validator evaluating specifications vs deliverable proofs...");
+      }, 2000);
 
-    setTimeout(() => {
-      setAiAnalysisLog("GenLayer equivalence validators cross-checking verdict and judicial confidence score...");
-    }, 3000);
+      setTimeout(() => {
+        setAiAnalysisLog("Equivalence validators executing judicial consensus and financial settlement...");
+      }, 5000);
 
-    setTimeout(async () => {
-      const lowerComplaint = complaintInput.toLowerCase();
-      const currentEscrow = escrows.find((e) => e.id === id);
-      const delivery = (currentEscrow?.delivery || "").toLowerCase();
-      const specs = (currentEscrow?.specifications || "").toLowerCase();
-
-      let decision = "RELEASE";
-      let summary = "Delivered deliverables satisfy primary contractual specifications. Slight variations are within standard acceptable tolerance.";
-      let status = 2;
-      let conf = 92;
-
-      // ── Step 1: Evaluate delivery proof quality ──────────────────────────────
-      // Clearly invalid/fake delivery proof
-      const hasInvalidDelivery =
-        delivery === "" ||
-        delivery === "https://github.com/test" ||
-        delivery.includes("example.com") ||
-        delivery.includes("/test") ||
-        delivery.includes("fake") ||
-        delivery.includes("placeholder") ||
-        delivery.includes("lorem") ||
-        delivery.includes("todo");
-
-      // Looks like a real delivery (has a real domain, not a test repo)
-      const hasValidDelivery =
-        delivery !== "" &&
-        !hasInvalidDelivery &&
-        (delivery.startsWith("http://") || delivery.startsWith("https://"));
-
-      // ── Step 2: Evaluate buyer complaint intent ───────────────────────────────
-      const isVagueOrUnfairComplaint =
-        lowerComplaint.includes("don't like") ||
-        lowerComplaint.includes("changed mind") ||
-        lowerComplaint.includes("نمیخوام") ||
-        lowerComplaint.includes("پشیمون") ||
-        lowerComplaint.includes("بد شد") ||
-        lowerComplaint.includes("نظرم عوض");
-
-      const isRefundComplaint =
-        lowerComplaint.includes("fake") ||
-        lowerComplaint.includes("nothing") ||
-        lowerComplaint.includes("fraud") ||
-        lowerComplaint.includes("failed") ||
-        lowerComplaint.includes("broken") ||
-        lowerComplaint.includes("missing") ||
-        lowerComplaint.includes("invalid") ||
-        lowerComplaint.includes("not working") ||
-        lowerComplaint.includes("not delivered") ||
-        lowerComplaint.includes("link") ||
-        lowerComplaint.includes("404") ||
-        lowerComplaint.includes("wrong") ||
-        lowerComplaint.includes("unrelated") ||
-        lowerComplaint.includes("کار نمیکنه") ||
-        lowerComplaint.includes("لینک") ||
-        lowerComplaint.includes("وجود نداره") ||
-        lowerComplaint.includes("جعلی") ||
-        lowerComplaint.includes("خراب") ||
-        lowerComplaint.includes("تحویل نداد") ||
-        lowerComplaint.includes("مشکل داره") ||
-        lowerComplaint.includes("اشتباه") ||
-        lowerComplaint.includes("نامرتبط") ||
-        lowerComplaint.includes("غیر مرتبط");
-
-      const isSplitComplaint =
-        lowerComplaint.includes("partial") ||
-        lowerComplaint.includes("incomplete") ||
-        lowerComplaint.includes("half") ||
-        lowerComplaint.includes("delay") ||
-        lowerComplaint.includes("ناقص") ||
-        lowerComplaint.includes("تاخیر") ||
-        lowerComplaint.includes("بخشی");
-
-      // ── Step 3: Two-sided verdict logic ──────────────────────────────────────
-      if (hasValidDelivery && isVagueOrUnfairComplaint) {
-        // Contractor delivered valid proof, buyer complaint is vague/unfair → protect contractor
-        decision = "RELEASE";
-        summary = "AI Validator Verdict: Contractor submitted a verifiable deliverable that meets primary specifications. Buyer complaint lacks objective evidence of failure. Funds released to contractor. (Unfair dispute rejected.)";
-        status = 2;
-        conf = 94;
-      } else if (hasInvalidDelivery || (!hasValidDelivery && isRefundComplaint)) {
-        // Delivery is empty/fake OR complaint is legitimate about real failures
-        decision = "REFUND";
-        summary = "AI Validator Verdict: Submitted deliverable proof is unverifiable, broken, or invalid. Contractor failed contractual obligations. Escrow flagged for re-assignment. Buyer may re-open task for new applicants.";
-        status = 3;
-        conf = 97;
-      } else if (hasValidDelivery && isRefundComplaint) {
-        // Delivery looks real but buyer has a specific complaint → split 50/50
-        decision = "SPLIT";
-        summary = "AI Validator Verdict: Deliverable partially satisfies specifications but buyer reports substantive issues. Balanced 50/50 resolution awarded as fair compromise.";
-        status = 4;
-        conf = 86;
-      } else if (isSplitComplaint) {
-        decision = "SPLIT";
-        summary = "AI Validator Verdict: Substantial progress delivered but key components incomplete. Balanced 50/50 resolution awarded.";
-        status = 4;
-        conf = 89;
-      }
-
-      // NOTE: Funds were already locked in contract at escrow creation.
-      // In a real smart contract, contract releases to seller/buyer based on verdict.
-      // Here we just update status — no second transaction from buyer's wallet.
-      const updatedEscrows = escrows.map(e => {
-        if (e.id === id) {
-          return {
-            ...e,
-            status,
-            confidence: conf,
-            verdict_summary: `[${decision}] ${summary}`
-          };
-        }
-        return e;
-      });
-      setEscrows(updatedEscrows);
-      await fetch("/api/escrows", {
+      const res = await fetch("/api/escrows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ escrows: updatedEscrows })
+        body: JSON.stringify({
+          action: "resolve_dispute_with_ai",
+          escrowId: id,
+          complaint: complaintInput
+        })
       });
 
-      setIsResolvingAi(false);
-      setAiAnalysisLog(null);
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "AI dispute resolution failed");
+      }
+
+      alert(`✅ GenLayer AI Consensus reached! Contract-controlled settlement finalized on Bradbury. Tx: ${resData.txHash?.slice(0, 14)}...`);
       setComplaintInput("");
       setSelectedEscrow(null);
-    }, 4500);
+      await syncWithServer();
+    } catch (err: any) {
+      console.error("AI dispute failed:", err);
+      alert(`Dispute resolution error: ${err.message || "Unknown error"}`);
+    } finally {
+      setIsResolvingAi(false);
+      setAiAnalysisLog(null);
+    }
   };
 
-  // Handle Re-open Task after REFUND — resets to Open Bounty so new freelancers can apply
+  // Handle Re-open Task after REFUND on-chain — re-locks funds in contract custody and resets bounty
   const handleReopenTask = async (id: number) => {
-    const updatedEscrows = escrows.map(e => {
-      if (e.id === id) {
-        return {
-          ...e,
-          status: 5, // OPEN_FOR_APPLICANTS
-          seller: "0x0000000000000000000000000000000000000000",
-          delivery: "",
-          confidence: 0,
-          applicants: [],
-          verdict_summary: "Task re-opened after failed delivery. Previous contractor removed. Accepting new applications from freelancers."
-        };
+    try {
+      const res = await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reopen_task",
+          escrowId: id
+        })
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Reopen task failed");
       }
-      return e;
-    });
-    setEscrows(updatedEscrows);
-    await fetch("/api/escrows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ escrows: updatedEscrows })
-    });
-    alert("✅ Task re-opened! Freelancers can now apply again.");
+
+      alert(`✅ Task re-opened on-chain! Refunded balance re-locked into contract custody. Tx: ${resData.txHash?.slice(0, 14)}...`);
+      await syncWithServer();
+    } catch (err: any) {
+      console.error("Error reopening task:", err);
+      alert(`Failed to reopen task: ${err.message || "Unknown error"}`);
+    }
+  };
+
+  // Handle Withdraw Settled Funds from Contract
+  const handleWithdrawFunds = async () => {
+    if (!account) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    setIsWithdrawing(true);
+    try {
+      const res = await fetch("/api/escrows", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "withdraw_funds"
+        })
+      });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Withdrawal failed");
+      }
+
+      alert(`✅ Claimed settled funds from contract! Tx: ${resData.txHash?.slice(0, 14)}...`);
+      await syncWithServer();
+    } catch (err: any) {
+      console.error("Withdrawal error:", err);
+      alert(`Withdrawal failed: ${err.message || "Unknown error"}`);
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   return (
@@ -668,6 +560,32 @@ export default function Home() {
 
             {account ? (
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 bg-slate-900 border border-amber-500/30 px-3 py-1.5 rounded-lg text-xs font-mono text-amber-300">
+                  <Coins className="h-3.5 w-3.5 text-amber-400" />
+                  <span>Claimable:</span>
+                  <span className="font-bold text-amber-200">
+                    {(() => {
+                      try {
+                        const rawNum = BigInt(claimableBalance);
+                        const whole = rawNum / BigInt(1e18);
+                        const frac = (rawNum % BigInt(1e18)).toString().padStart(18, '0').slice(0, 3);
+                        return `${whole}.${frac} GEN`;
+                      } catch {
+                        return "0 GEN";
+                      }
+                    })()}
+                  </span>
+                  {BigInt(claimableBalance || "0") > BigInt(0) && (
+                    <button
+                      onClick={handleWithdrawFunds}
+                      disabled={isWithdrawing}
+                      className="ml-1 px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] transition disabled:opacity-50"
+                    >
+                      {isWithdrawing ? "Claiming..." : "Withdraw"}
+                    </button>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-2 bg-slate-900 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-xs font-mono text-emerald-300">
                   <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></div>
                   {account.slice(0, 6)}...{account.slice(-4)}
@@ -720,7 +638,7 @@ export default function Home() {
               rel="noreferrer"
               className="text-sm font-mono text-cyan-400 hover:underline truncate block"
             >
-              0xF9E1...ad52
+              0xee76...b555
             </a>
             <p className="text-xs text-slate-500 mt-1">Equivalence Arbitration</p>
           </div>
