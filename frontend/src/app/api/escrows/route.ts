@@ -11,7 +11,7 @@ function addressToCalldataAddress(addr: string) {
   return new CalldataAddress(Buffer.from(clean, "hex"));
 }
 
-async function executeWithRetry<T>(fn: () => Promise<T>, maxRetries = 6, baseDelayMs = 2500): Promise<T> {
+async function executeWithRetry<T>(fn: () => Promise<T>, maxRetries = 12, baseDelayMs = 3000): Promise<T> {
   let lastErr: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -23,11 +23,14 @@ async function executeWithRetry<T>(fn: () => Promise<T>, maxRetries = 6, baseDel
         fullMsg.includes("rate limit") ||
         fullMsg.includes("capacity") ||
         fullMsg.includes("-32005") ||
-        fullMsg.includes("limitexceeded");
+        fullMsg.includes("limitexceeded") ||
+        fullMsg.includes("exceeds defined limit");
 
       if (isRateLimit && i < maxRetries - 1) {
-        const retryAfterMs = err?.cause?.data?.retryAfterMs || err?.data?.retryAfterMs || (baseDelayMs + i * 1500);
-        await new Promise((r) => setTimeout(r, Math.max(1500, retryAfterMs + 500)));
+        const retryAfterMs = Number(err?.cause?.data?.retryAfterMs || err?.data?.retryAfterMs || 0);
+        const waitTime = retryAfterMs > 0 ? retryAfterMs + 1000 : baseDelayMs + (i * 1500);
+        console.warn(`[GenLayer RPC RateLimit] Attempt ${i + 1}/${maxRetries} failed, waiting ${waitTime}ms before retry...`);
+        await new Promise((r) => setTimeout(r, waitTime));
         continue;
       }
       throw err;

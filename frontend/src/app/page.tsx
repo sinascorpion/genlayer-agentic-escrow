@@ -148,7 +148,7 @@ export default function Home() {
       }
 
       syncWithServer();
-      const interval = setInterval(syncWithServer, 4000);
+      const interval = setInterval(syncWithServer, 12000);
 
       const isManualDisconnect = localStorage.getItem("wallet_disconnected") === "true";
 
