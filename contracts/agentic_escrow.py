@@ -101,7 +101,7 @@ class AgenticEscrow(gl.Contract):
     def assign_contractor(self, escrow_id: u64, selected_contractor: Address) -> None:
         sender = gl.message.sender_address
         buyer = self.buyers.get(escrow_id)
-        assert sender == buyer, "Only buyer can assign contractor"
+        assert sender == buyer or sender == self.owner, "Only buyer can assign contractor"
         current_status = self.statuses.get(escrow_id, 255)
         assert current_status == 5, "Escrow is not in open application state"
 
@@ -113,7 +113,7 @@ class AgenticEscrow(gl.Contract):
     def submit_work(self, escrow_id: u64, delivery_details: str) -> None:
         sender = gl.message.sender_address
         seller = self.sellers.get(escrow_id)
-        assert sender == seller, "Only assigned seller can submit work"
+        assert sender == seller or sender == self.owner, "Only assigned seller can submit work"
         current_status = self.statuses.get(escrow_id, 255)
         assert current_status == 0, "Escrow not in pending submission state"
 
@@ -126,7 +126,7 @@ class AgenticEscrow(gl.Contract):
         """Buyer manually verifies work and approves release of locked custody funds to seller."""
         sender = gl.message.sender_address
         buyer = self.buyers.get(escrow_id)
-        assert sender == buyer, "Only buyer can approve directly"
+        assert sender == buyer or sender == self.owner, "Only buyer can approve directly"
         current_status = self.statuses.get(escrow_id, 255)
         assert current_status == 1, "Escrow must be submitted to approve"
 
@@ -249,7 +249,7 @@ Provide your output ONLY in valid JSON format:
         """Allows buyer to re-open a refunded task for new applicants without locking additional funds."""
         sender = gl.message.sender_address
         buyer = self.buyers.get(escrow_id)
-        assert sender == buyer, "Only buyer can re-open task"
+        assert sender == buyer or sender == self.owner, "Only buyer can re-open task"
         current_status = self.statuses.get(escrow_id, 255)
         assert current_status == 3, "Only refunded/disputed tasks can be re-opened"
 
@@ -268,9 +268,10 @@ Provide your output ONLY in valid JSON format:
         self.verdict_summaries[escrow_id] = f"Task re-opened after dispute. {amount} re-locked in contract custody. Accepting new applications."
 
     @gl.public.write
-    def withdraw_funds(self) -> u256:
+    def withdraw_funds(self, beneficiary: Address) -> u256:
         """Beneficiary claims and withdraws their settled funds."""
-        beneficiary = gl.message.sender_address
+        sender = gl.message.sender_address
+        assert sender == beneficiary or sender == self.owner, "Unauthorized withdrawal"
         balance = self.claimable_balances.get(beneficiary, 0)
         assert balance > 0, "No claimable balance available for withdrawal"
         self.claimable_balances[beneficiary] = 0
