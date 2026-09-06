@@ -11,16 +11,23 @@ function addressToCalldataAddress(addr: string) {
   return new CalldataAddress(Buffer.from(clean, "hex"));
 }
 
-async function executeWithRetry<T>(fn: () => Promise<T>, maxRetries = 4, delayMs = 2000): Promise<T> {
+async function executeWithRetry<T>(fn: () => Promise<T>, maxRetries = 6, baseDelayMs = 2500): Promise<T> {
   let lastErr: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (err: any) {
       lastErr = err;
-      const msg = err?.message || "";
-      if (msg.includes("rate limit") || msg.includes("capacity") || msg.includes("-32005")) {
-        await new Promise((r) => setTimeout(r, delayMs + i * 1500));
+      const fullMsg = `${err?.message || ""} ${err?.details || ""} ${err?.shortMessage || ""}`.toLowerCase();
+      const isRateLimit =
+        fullMsg.includes("rate limit") ||
+        fullMsg.includes("capacity") ||
+        fullMsg.includes("-32005") ||
+        fullMsg.includes("limitexceeded");
+
+      if (isRateLimit && i < maxRetries - 1) {
+        const retryAfterMs = err?.cause?.data?.retryAfterMs || err?.data?.retryAfterMs || (baseDelayMs + i * 1500);
+        await new Promise((r) => setTimeout(r, Math.max(1500, retryAfterMs + 500)));
         continue;
       }
       throw err;
