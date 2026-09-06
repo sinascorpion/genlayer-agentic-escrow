@@ -24,7 +24,9 @@ async function executeWithRetry<T>(fn: () => Promise<T>, maxRetries = 12, baseDe
         fullMsg.includes("capacity") ||
         fullMsg.includes("-32005") ||
         fullMsg.includes("limitexceeded") ||
-        fullMsg.includes("exceeds defined limit");
+        fullMsg.includes("exceeds defined limit") ||
+        fullMsg.includes("gas rate limit") ||
+        fullMsg.includes("node is at capacity");
 
       if (isRateLimit && i < maxRetries - 1) {
         const retryAfterMs = Number(err?.cause?.data?.retryAfterMs || err?.data?.retryAfterMs || 0);
