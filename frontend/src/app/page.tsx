@@ -23,7 +23,7 @@ import {
   Globe
 } from "lucide-react";
 
-const CONTRACT_ADDRESS = "0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555";
+const CONTRACT_ADDRESS = "0x8B6Fbb4fb90EA43B75805eeb2257a257631a1a16";
 const BRADBURY_RPC = "https://rpc-bradbury.genlayer.com";
 const CHAIN_EXPLORER = "https://explorer-bradbury.genlayer.com";
 
@@ -142,31 +142,27 @@ export default function Home() {
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem("genlayer_escrows");
-        const saved = localStorage.getItem("genlayer_escrows_v2");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            setEscrows(parsed);
-          }
-        }
+        localStorage.removeItem("genlayer_escrows_v2");
       } catch (err) {
-        console.error("Failed to parse saved escrows", err);
+        console.error("Failed to clean legacy escrows", err);
       }
 
       syncWithServer();
       const interval = setInterval(syncWithServer, 4000);
 
-      if ((window as any).ethereum) {
+      const isManualDisconnect = localStorage.getItem("wallet_disconnected") === "true";
+
+      if ((window as any).ethereum && !isManualDisconnect) {
         (window as any).ethereum.request({ method: "eth_accounts" })
           .then((accounts: string[]) => {
-            if (accounts.length > 0) {
+            if (accounts.length > 0 && localStorage.getItem("wallet_disconnected") !== "true") {
               setAccount(accounts[0]);
             }
           })
           .catch((err: any) => console.error("Error fetching accounts", err));
 
         (window as any).ethereum.on("accountsChanged", (accounts: string[]) => {
-          if (accounts.length > 0) {
+          if (accounts.length > 0 && localStorage.getItem("wallet_disconnected") !== "true") {
             setAccount(accounts[0]);
           } else {
             setAccount(null);
@@ -182,6 +178,7 @@ export default function Home() {
   const connectWallet = async () => {
     if (typeof window !== "undefined" && (window as any).ethereum) {
       try {
+        localStorage.removeItem("wallet_disconnected");
         const accounts = await (window as any).ethereum.request({ method: "eth_requestAccounts" });
         if (accounts.length > 0) {
           setAccount(accounts[0]);
@@ -196,7 +193,11 @@ export default function Home() {
 
   // Disconnect Web3 Wallet
   const disconnectWallet = () => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("wallet_disconnected", "true");
+    }
     setAccount(null);
+    setClaimableBalance("0");
   };
 
   // Add GenLayer Network to Wallet
@@ -638,7 +639,7 @@ export default function Home() {
               rel="noreferrer"
               className="text-sm font-mono text-cyan-400 hover:underline truncate block"
             >
-              0xee76...b555
+              0x8B6F...1a16
             </a>
             <p className="text-xs text-slate-500 mt-1">Equivalence Arbitration</p>
           </div>

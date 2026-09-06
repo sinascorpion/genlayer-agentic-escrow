@@ -3,7 +3,7 @@ import { createClient, createAccount } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { CalldataAddress } from "genlayer-js/types";
 
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0xee76707A82D12EAbBF4bA9E99942f6AF45cfb555") as `0x${string}`;
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x8B6Fbb4fb90EA43B75805eeb2257a257631a1a16") as `0x${string}`;
 const RELAYER_KEY = (process.env.GENLAYER_RELAYER_KEY || "0x900bd9efffd809b30c2cd83b43d60e96790ad3b5aff6031d78dc148d9bb1e446") as `0x${string}`;
 
 function addressToCalldataAddress(addr: string) {
