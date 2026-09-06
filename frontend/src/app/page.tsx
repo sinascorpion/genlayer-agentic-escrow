@@ -235,15 +235,18 @@ export default function Home() {
     actionName: string;
     progress: number;
     statusText: string;
+    escrowId?: number;
+    isError?: boolean;
   } | null>(null);
 
   // Helper to poll on-chain transaction progress
-  const trackTxProgress = async (txHash: string, actionName: string) => {
+  const trackTxProgress = async (txHash: string, actionName: string, escrowId?: number) => {
     setPendingTx({
       hash: txHash,
       actionName,
       progress: 15,
-      statusText: "Transaction broadcasted to Bradbury. Awaiting validator pick..."
+      statusText: "Transaction broadcasted to Bradbury. Awaiting validator pick...",
+      escrowId
     });
 
     let currentProgress = 20;
@@ -258,33 +261,32 @@ export default function Home() {
 
           if (status === "COMMITTING") {
             currentProgress = Math.min(65, Math.max(currentProgress + 5, 45));
-            setPendingTx({
-              hash: txHash,
-              actionName,
+            setPendingTx(prev => prev ? {
+              ...prev,
               progress: currentProgress,
               statusText: "Validators committing cryptographic consensus rounds..."
-            });
+            } : null);
           } else if (status === "REVEALING") {
             currentProgress = Math.min(85, Math.max(currentProgress + 5, 70));
-            setPendingTx({
-              hash: txHash,
-              actionName,
+            setPendingTx(prev => prev ? {
+              ...prev,
               progress: currentProgress,
               statusText: "Equivalence check & LLM output verification in progress..."
-            });
+            } : null);
           } else if (status === "ACCEPTED") {
             clearInterval(interval);
-            setPendingTx({
-              hash: txHash,
-              actionName,
+            const isReverted = execRes === "FINISHED_WITH_ERROR";
+            setPendingTx(prev => prev ? {
+              ...prev,
               progress: 100,
-              statusText: execRes === "FINISHED_WITH_ERROR"
+              isError: isReverted,
+              statusText: isReverted
                 ? "Transaction finalized with contract revert."
                 : "Transaction successfully included & confirmed on-chain!"
-            });
+            } : null);
             setTimeout(() => {
               setPendingTx(null);
-            }, 5000);
+            }, 6000);
             await syncWithServer();
             return;
           }
@@ -405,7 +407,7 @@ export default function Home() {
       }
 
       if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Apply for Task #${id}`);
+        trackTxProgress(resData.txHash, `Apply for Task #${id}`, id);
       }
       setProposalInput("");
       setApplyingEscrow(null);
@@ -437,7 +439,7 @@ export default function Home() {
       }
 
       if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Assign Contractor for Escrow #${escrowId}`);
+        trackTxProgress(resData.txHash, `Assign Contractor for Escrow #${escrowId}`, escrowId);
       }
       setViewingApplicantsEscrow(null);
       await syncWithServer();
@@ -471,7 +473,7 @@ export default function Home() {
       }
 
       if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Submit Work Delivery Proof for #${id}`);
+        trackTxProgress(resData.txHash, `Submit Work Delivery Proof for #${id}`, id);
       }
       setDeliveryInput("");
       setSelectedEscrow(null);
@@ -509,7 +511,7 @@ export default function Home() {
       }
 
       if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Approve & Release Funds for Escrow #${id}`);
+        trackTxProgress(resData.txHash, `Approve & Release Funds for Escrow #${id}`, id);
       }
       await syncWithServer();
     } catch (err: any) {
@@ -552,7 +554,7 @@ export default function Home() {
       }
 
       if (resData.txHash) {
-        trackTxProgress(resData.txHash, `AI Judicial Dispute Resolution for #${id}`);
+        trackTxProgress(resData.txHash, `AI Judicial Dispute Resolution for #${id}`, id);
       }
       setComplaintInput("");
       setSelectedEscrow(null);
@@ -584,7 +586,7 @@ export default function Home() {
       }
 
       if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Reopen Task #${id}`);
+        trackTxProgress(resData.txHash, `Reopen Task #${id}`, id);
       }
       await syncWithServer();
     } catch (err: any) {
@@ -1130,6 +1132,54 @@ export default function Home() {
                       </>
                     )}
                   </div>
+
+                  {/* Real-time on-chain progress bar directly inside this specific task card */}
+                  {pendingTx && pendingTx.escrowId === escrow.id && (
+                    <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-r from-slate-900 via-[#0a1628] to-slate-900 border border-cyan-500/40 shadow-lg animate-in fade-in duration-300">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <Loader2 className={`h-4 w-4 ${pendingTx.isError ? "text-rose-400" : "text-cyan-400"} animate-spin`} />
+                          <span className="text-xs font-semibold text-white">
+                            {pendingTx.actionName}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 font-mono text-[11px]">
+                          <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold">
+                            {pendingTx.progress}%
+                          </span>
+                          <a
+                            href={`https://explorer-bradbury.genlayer.com/tx/${pendingTx.hash}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-cyan-400 hover:text-cyan-300 underline flex items-center gap-0.5"
+                          >
+                            <span>Tx</span>
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Bar Track */}
+                      <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800 p-0.5 mb-1.5">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ease-out ${
+                            pendingTx.isError
+                              ? "bg-rose-500"
+                              : "bg-gradient-to-r from-cyan-500 via-emerald-400 to-teal-400 shadow-sm shadow-cyan-500/50"
+                          }`}
+                          style={{ width: `${pendingTx.progress}%` }}
+                        ></div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <span className="flex items-center gap-1.5">
+                          <span className={`h-1.5 w-1.5 rounded-full ${pendingTx.isError ? "bg-rose-400" : "bg-cyan-400"} animate-pulse`}></span>
+                          {pendingTx.statusText}
+                        </span>
+                        <span className="font-mono text-[10px] text-slate-500 hidden sm:inline">GenLayer Bradbury 4221</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             }))}
