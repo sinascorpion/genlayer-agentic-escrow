@@ -24,7 +24,7 @@ import {
   Loader2
 } from "lucide-react";
 
-const CONTRACT_ADDRESS = "0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B";
+const CONTRACT_ADDRESS = "0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152";
 const BRADBURY_RPC = "https://rpc-bradbury.genlayer.com";
 const CHAIN_EXPLORER = "https://explorer-bradbury.genlayer.com";
 
@@ -342,6 +342,32 @@ export default function Home() {
       const isBounty = escrowMode === "bounty";
       const assignedSeller = isBounty ? "0x0000000000000000000000000000000000000000" : newSeller;
       const amountWei = (BigInt(Math.floor(numAmount * 1e6)) * BigInt(1e12)).toString();
+
+      // Trigger MetaMask popup to transfer and lock funds directly from user wallet
+      let userTxHash = "";
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        try {
+          const hexValue = "0x" + BigInt(amountWei).toString(16);
+          userTxHash = await (window as any).ethereum.request({
+            method: "eth_sendTransaction",
+            params: [
+              {
+                from: account,
+                to: CONTRACT_ADDRESS,
+                value: hexValue,
+              },
+            ],
+          });
+          console.log("MetaMask deposit tx approved:", userTxHash);
+        } catch (metamaskErr: any) {
+          if (metamaskErr.code === 4001) {
+            alert("Deposit transaction rejected in MetaMask.");
+            setIsCreating(false);
+            return;
+          }
+          console.warn("Wallet deposit warning:", metamaskErr);
+        }
+      }
 
       const res = await fetch("/api/escrows", {
         method: "POST",

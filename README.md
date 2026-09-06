@@ -3,7 +3,7 @@
 > **Autonomous AI-Powered Judicial Dispute Resolution and Trustless Escrow Protocol on GenLayer**
 
 [![Live DApp](https://img.shields.io/badge/Live%20DApp-agenticescrow.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://agenticescrow.vercel.app)
-[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0x3328...468B-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B)
+[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0x6E8f...0152-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152)
 [![Network](https://img.shields.io/badge/GenLayer-Bradbury%20Testnet%20(4221)-8b5cf6?style=for-the-badge)](https://genlayer.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,7 @@
 **AgenticEscrow** is a next-generation decentralized escrow protocol powered by GenLayer's non-deterministic Intelligent Contracts. It combines decentralized smart contract security with autonomous AI multi-validator arbitration to eliminate human intermediaries, unfair dispute resolutions, and excessive platform commissions in digital commerce, software contracting, and freelancing.
 
 - 🌐 **Live Website / DApp**: [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app)
-- 📜 **Deployed Intelligent Contract**: [`0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B`](https://explorer-bradbury.genlayer.com/address/0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B)
+- 📜 **Deployed Intelligent Contract**: [`0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152`](https://explorer-bradbury.genlayer.com/address/0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152)
 - ⛓️ **Network**: GenLayer Bradbury Testnet (Chain ID: `4221` / `0x107d`)
 - 🔍 **Block Explorer**: [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com)
 
@@ -139,8 +139,8 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 | Parameter | Value |
 | :--- | :--- |
 | **Live Web App** | [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app) |
-| **Intelligent Contract Address** | [`0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B`](https://explorer-bradbury.genlayer.com/address/0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B) |
-| **Deployment Transaction** | [`0x2d3d97f0d319b0786a76b190d989a8ff5e202d00fd238d017f1a1c970c880205`](https://explorer-bradbury.genlayer.com/tx/0x2d3d97f0d319b0786a76b190d989a8ff5e202d00fd238d017f1a1c970c880205) |
+| **Intelligent Contract Address** | [`0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152`](https://explorer-bradbury.genlayer.com/address/0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152) |
+| **Deployment Transaction** | [`0x3469bb478c2d510a43f2fe5aa0e31c8490db071d29375e62d3651034f6d0b621`](https://explorer-bradbury.genlayer.com/tx/0x3469bb478c2d510a43f2fe5aa0e31c8490db071d29375e62d3651034f6d0b621) |
 | **Network Name** | GenLayer Bradbury Testnet |
 | **Chain ID** | 4221 (0x107d) |
 | **RPC Endpoint** | https://rpc-bradbury.genlayer.com |

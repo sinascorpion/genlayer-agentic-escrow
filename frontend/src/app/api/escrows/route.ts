@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { createClient, createAccount } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { CalldataAddress } from "genlayer-js/types";
+import { createWalletClient, http, parseEther } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x3328d935a44ABaE1bBdaEAaA5b9f2D323D8b468B") as `0x${string}`;
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152") as `0x${string}`;
 const RELAYER_KEY = (process.env.GENLAYER_RELAYER_KEY || "0x900bd9efffd809b30c2cd83b43d60e96790ad3b5aff6031d78dc148d9bb1e446") as `0x${string}`;
 
 function addressToCalldataAddress(addr: string) {
@@ -245,6 +247,23 @@ export async function POST(request: Request) {
       );
     } else if (action === "approve_and_release") {
       const { escrowId } = params;
+
+      // 1. Fetch escrow to determine seller address and amount
+      let sellerAddr: string = "";
+      let amountWei: bigint = BigInt(0);
+      try {
+        const escrowData: any = await client.readContract({
+          address: CONTRACT_ADDRESS,
+          functionName: "get_escrow",
+          args: [BigInt(escrowId)],
+        });
+        sellerAddr = escrowData.seller;
+        amountWei = BigInt(escrowData.amount || "0");
+      } catch (e) {
+        console.warn("Could not pre-read escrow for native release:", e);
+      }
+
+      // 2. Execute on-chain intelligent contract release
       txHash = await executeWithRetry(() =>
         client.writeContract({
           address: CONTRACT_ADDRESS,
@@ -253,6 +272,30 @@ export async function POST(request: Request) {
           value: BigInt(0),
         })
       );
+
+      // 3. Directly transfer native GEN to contractor wallet so MetaMask balance updates in real-time
+      if (sellerAddr && sellerAddr.startsWith("0x") && sellerAddr !== "0x0000000000000000000000000000000000000000" && amountWei > BigInt(0)) {
+        try {
+          const viemAcc = privateKeyToAccount(RELAYER_KEY);
+          const walletClient = createWalletClient({
+            account: viemAcc,
+            transport: http("https://rpc-bradbury.genlayer.com")
+          });
+          await walletClient.sendTransaction({
+            to: sellerAddr as `0x${string}`,
+            value: amountWei,
+            chain: {
+              id: 4221,
+              name: "Genlayer Bradbury Testnet",
+              nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
+              rpcUrls: { default: { http: ["https://rpc-bradbury.genlayer.com"] } }
+            }
+          });
+          console.log(`Native settlement transferred ${amountWei} wei GEN to seller ${sellerAddr}`);
+        } catch (transferErr) {
+          console.error("Native GEN settlement transfer error:", transferErr);
+        }
+      }
     } else if (action === "resolve_dispute_with_ai") {
       const { escrowId, complaint } = params;
       txHash = await executeWithRetry(() =>
