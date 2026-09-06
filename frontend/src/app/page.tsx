@@ -1027,9 +1027,18 @@ export default function Home() {
                       <span className="text-sm font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-lg border border-emerald-500/20 font-mono">
                         {escrow.amount}
                       </span>
-                      <span className={`text-xs px-3 py-1 rounded-full border font-medium ${statusCfg.color} ${statusCfg.bg}`}>
-                        {statusCfg.label}
-                      </span>
+                      {(() => {
+                        let labelText = statusCfg.label;
+                        if (escrow.status === 2) {
+                          const isSeller = account && account.toLowerCase() === escrow.seller.toLowerCase();
+                          labelText = isSeller ? "Delivered" : "Completed";
+                        }
+                        return (
+                          <span className={`text-xs px-3 py-1 rounded-full border font-medium ${statusCfg.color} ${statusCfg.bg}`}>
+                            {labelText}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 

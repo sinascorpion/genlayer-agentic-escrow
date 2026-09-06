@@ -281,16 +281,18 @@ export async function POST(request: Request) {
             account: viemAcc,
             transport: http("https://rpc-bradbury.genlayer.com")
           });
-          await walletClient.sendTransaction({
-            to: sellerAddr as `0x${string}`,
-            value: amountWei,
-            chain: {
-              id: 4221,
-              name: "Genlayer Bradbury Testnet",
-              nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-              rpcUrls: { default: { http: ["https://rpc-bradbury.genlayer.com"] } }
-            }
-          });
+          await executeWithRetry(() =>
+            walletClient.sendTransaction({
+              to: sellerAddr as `0x${string}`,
+              value: amountWei,
+              chain: {
+                id: 4221,
+                name: "Genlayer Bradbury Testnet",
+                nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
+                rpcUrls: { default: { http: ["https://rpc-bradbury.genlayer.com"] } }
+              }
+            })
+          );
           console.log(`Native settlement transferred ${amountWei} wei GEN to seller ${sellerAddr}`);
         } catch (transferErr) {
           console.error("Native GEN settlement transfer error:", transferErr);
