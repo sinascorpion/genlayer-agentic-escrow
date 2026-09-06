@@ -23,7 +23,7 @@ import {
   Globe
 } from "lucide-react";
 
-const CONTRACT_ADDRESS = "0x8B6Fbb4fb90EA43B75805eeb2257a257631a1a16";
+const CONTRACT_ADDRESS = "0x5265eaD015610A9bf27f3c5b51666b7eB0984f0a";
 const BRADBURY_RPC = "https://rpc-bradbury.genlayer.com";
 const CHAIN_EXPLORER = "https://explorer-bradbury.genlayer.com";
 

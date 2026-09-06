@@ -3,7 +3,7 @@ import { createClient, createAccount } from "genlayer-js";
 import { testnetBradbury } from "genlayer-js/chains";
 import { CalldataAddress } from "genlayer-js/types";
 
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x8B6Fbb4fb90EA43B75805eeb2257a257631a1a16") as `0x${string}`;
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x5265eaD015610A9bf27f3c5b51666b7eB0984f0a") as `0x${string}`;
 const RELAYER_KEY = (process.env.GENLAYER_RELAYER_KEY || "0x900bd9efffd809b30c2cd83b43d60e96790ad3b5aff6031d78dc148d9bb1e446") as `0x${string}`;
 
 function addressToCalldataAddress(addr: string) {
@@ -183,12 +183,16 @@ export async function POST(request: Request) {
         })
       );
     } else if (action === "apply_for_task") {
-      const { escrowId, proposal } = params;
+      const { escrowId, proposal, applicant } = params;
+      let onChainProposal = proposal;
+      if (applicant && applicant.startsWith("0x") && !proposal.startsWith(`[Applicant:${applicant}]`)) {
+        onChainProposal = `[Applicant:${applicant}] ${proposal}`;
+      }
       txHash = await executeWithRetry(() =>
         client.writeContract({
           address: CONTRACT_ADDRESS,
           functionName: "apply_for_task",
-          args: [BigInt(escrowId), proposal],
+          args: [BigInt(escrowId), onChainProposal],
           value: BigInt(0),
         })
       );

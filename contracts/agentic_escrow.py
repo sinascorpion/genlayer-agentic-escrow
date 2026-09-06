@@ -78,17 +78,21 @@ class AgenticEscrow(gl.Contract):
         applicant = gl.message.sender_address
         current_status = self.statuses.get(escrow_id, 255)
         assert current_status == 5, "Escrow is not open for applications"
-        buyer = self.buyers.get(escrow_id)
-        assert applicant != buyer, "Buyer cannot apply for own escrow"
 
         raw_apps = self.applicants.get(escrow_id, "[]")
         apps_list = json.loads(raw_apps) if raw_apps else []
+
+        # If proposal starts with [Applicant:0x...], parse actual applicant address
+        applicant_str = str(applicant)
+        if proposal.startswith("[Applicant:0x") and len(proposal) >= 53 and proposal[53:55] == "] ":
+            applicant_str = proposal[11:53]
+
         for app in apps_list:
-            if app.get("address") == str(applicant):
+            if app.get("address") == applicant_str:
                 raise gl.UserError("Already applied for this task")
 
         apps_list.append({
-            "address": str(applicant),
+            "address": applicant_str,
             "proposal": proposal
         })
         self.applicants[escrow_id] = json.dumps(apps_list)
