@@ -102,6 +102,11 @@ export async function GET(request: Request) {
           }
         }
 
+        // Filter out redundant empty initial test escrow (#1) as requested
+        if (Number(item.id) === 1 && item.title === "test1" && applicantsList.length === 0) {
+          continue;
+        }
+
         escrows.push({
           id: Number(item.id),
           buyer: actualBuyer,
