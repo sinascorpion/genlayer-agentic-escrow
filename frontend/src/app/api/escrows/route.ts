@@ -89,12 +89,22 @@ export async function GET(request: Request) {
           genDisplay = `${item.amount} GEN`;
         }
 
+        let actualBuyer = item.buyer;
+        let actualSpec = item.specifications || "";
+        if (actualSpec.startsWith("[Buyer:0x")) {
+          const match = actualSpec.match(/^\[Buyer:(0x[a-fA-F0-9]{40})\]\s*/);
+          if (match) {
+            actualBuyer = match[1];
+            actualSpec = actualSpec.slice(match[0].length);
+          }
+        }
+
         escrows.push({
           id: Number(item.id),
-          buyer: item.buyer,
+          buyer: actualBuyer,
           seller: item.seller,
           title: item.title,
-          specifications: item.specifications,
+          specifications: actualSpec,
           amount: genDisplay,
           rawAmount: item.amount,
           lockedFunds: item.locked_funds || "0",
@@ -153,15 +163,19 @@ export async function POST(request: Request) {
     let txHash: string = "";
 
     if (action === "create_escrow") {
-      const { seller, title, specifications, amountWei } = params;
+      const { buyer, seller, title, specifications, amountWei } = params;
       const sellerArg = addressToCalldataAddress(seller || "0x0000000000000000000000000000000000000000");
       const weiAmount = BigInt(amountWei || "1000000000000000000");
+
+      const onChainSpecs = buyer && buyer.startsWith("0x")
+        ? `[Buyer:${buyer}] ${specifications}`
+        : specifications;
 
       txHash = await executeWithRetry(() =>
         client.writeContract({
           address: CONTRACT_ADDRESS,
           functionName: "create_escrow",
-          args: [sellerArg, title, specifications, weiAmount],
+          args: [sellerArg, title, onChainSpecs, weiAmount],
           value: BigInt(0),
         })
       );

@@ -262,6 +262,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "create_escrow",
+          buyer: account,
           seller: assignedSeller,
           title: newTitle,
           specifications: newSpec,
@@ -307,6 +308,7 @@ export default function Home() {
         body: JSON.stringify({
           action: "apply_for_task",
           escrowId: id,
+          applicant: account,
           proposal: `${account}: ${proposalInput.trim()}`
         })
       });
@@ -505,7 +507,8 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "withdraw_funds"
+          action: "withdraw_funds",
+          beneficiary: account
         })
       });
 
