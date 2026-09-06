@@ -44,8 +44,31 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const user = searchParams.get("user");
+    const txHash = searchParams.get("tx");
 
     const readClient = createClient({ chain: testnetBradbury });
+
+    // Quick tx status check if tx query param is passed
+    if (txHash && txHash.startsWith("0x")) {
+      try {
+        const tx: any = await readClient.getTransaction({ hash: txHash as any });
+        return NextResponse.json({
+          success: true,
+          tx: {
+            hash: txHash,
+            statusName: tx.statusName || "PENDING",
+            resultName: tx.resultName,
+            txExecutionResultName: tx.txExecutionResultName,
+            recipient: tx.recipient
+          }
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: true,
+          tx: { hash: txHash, statusName: "PENDING", error: err.message }
+        });
+      }
+    }
 
     const totalBigInt = await executeWithRetry(() =>
       readClient.readContract({

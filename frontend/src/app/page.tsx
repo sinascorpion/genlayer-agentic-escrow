@@ -20,7 +20,8 @@ import {
   Users,
   Briefcase,
   UserCheck,
-  Globe
+  Globe,
+  Loader2
 } from "lucide-react";
 
 const CONTRACT_ADDRESS = "0x35e31C24B7d68aDC2920BBF080b9289B5855456A";
@@ -228,6 +229,89 @@ export default function Home() {
   const [proposalInput, setProposalInput] = useState("");
   const [isApplying, setIsApplying] = useState(false);
 
+  // Real-time On-chain Transaction Progress Bar State
+  const [pendingTx, setPendingTx] = useState<{
+    hash: string;
+    actionName: string;
+    progress: number;
+    statusText: string;
+  } | null>(null);
+
+  // Helper to poll on-chain transaction progress
+  const trackTxProgress = async (txHash: string, actionName: string) => {
+    setPendingTx({
+      hash: txHash,
+      actionName,
+      progress: 15,
+      statusText: "Transaction broadcasted to Bradbury. Awaiting validator pick..."
+    });
+
+    let currentProgress = 20;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/escrows?tx=${txHash}`);
+        if (res.ok) {
+          const data = await res.json();
+          const tx = data.tx;
+          const status = tx?.statusName;
+          const execRes = tx?.txExecutionResultName;
+
+          if (status === "COMMITTING") {
+            currentProgress = Math.min(65, Math.max(currentProgress + 5, 45));
+            setPendingTx({
+              hash: txHash,
+              actionName,
+              progress: currentProgress,
+              statusText: "Validators committing cryptographic consensus rounds..."
+            });
+          } else if (status === "REVEALING") {
+            currentProgress = Math.min(85, Math.max(currentProgress + 5, 70));
+            setPendingTx({
+              hash: txHash,
+              actionName,
+              progress: currentProgress,
+              statusText: "Equivalence check & LLM output verification in progress..."
+            });
+          } else if (status === "ACCEPTED") {
+            clearInterval(interval);
+            setPendingTx({
+              hash: txHash,
+              actionName,
+              progress: 100,
+              statusText: execRes === "FINISHED_WITH_ERROR"
+                ? "Transaction finalized with contract revert."
+                : "Transaction successfully included & confirmed on-chain!"
+            });
+            setTimeout(() => {
+              setPendingTx(null);
+            }, 5000);
+            await syncWithServer();
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Progress poll error:", err);
+      }
+
+      currentProgress = Math.min(88, currentProgress + 4);
+      setPendingTx(prev => prev ? {
+        ...prev,
+        progress: currentProgress,
+        statusText: currentProgress > 60
+          ? "Waiting for validator block consensus confirmation..."
+          : "Processing consensus on GenLayer Bradbury..."
+      } : null);
+    }, 3500);
+
+    // Safety timeout after 90 seconds
+    setTimeout(() => {
+      clearInterval(interval);
+      setPendingTx(prev => prev ? { ...prev, progress: 100, statusText: "Completed." } : null);
+      setTimeout(() => setPendingTx(null), 3000);
+      syncWithServer();
+    }, 90000);
+  };
+
   // Handle Create Escrow on-chain (Direct or Open Bounty with contract custody)
   const handleCreateEscrow = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,7 +359,9 @@ export default function Home() {
         throw new Error(resData.error || "Contract call failed");
       }
 
-      alert(`✅ On-chain Escrow created! Funds locked in contract custody. Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Create Escrow: "${newTitle}"`);
+      }
       setNewTitle("");
       setNewSeller("");
       setNewAmount("");
@@ -318,7 +404,9 @@ export default function Home() {
         throw new Error(resData.error || "Application submission failed");
       }
 
-      alert(`✅ Proposal submitted to contract on Bradbury! Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Apply for Task #${id}`);
+      }
       setProposalInput("");
       setApplyingEscrow(null);
       await syncWithServer();
@@ -348,7 +436,9 @@ export default function Home() {
         throw new Error(resData.error || "Failed to assign contractor");
       }
 
-      alert(`✅ Contractor assigned on-chain! Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Assign Contractor for Escrow #${escrowId}`);
+      }
       setViewingApplicantsEscrow(null);
       await syncWithServer();
     } catch (err: any) {
@@ -380,7 +470,9 @@ export default function Home() {
         throw new Error(resData.error || "Deliverable submission failed");
       }
 
-      alert(`✅ Deliverables submitted on-chain to GenLayer! Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Submit Work Delivery Proof for #${id}`);
+      }
       setDeliveryInput("");
       setSelectedEscrow(null);
       await syncWithServer();
@@ -416,7 +508,9 @@ export default function Home() {
         throw new Error(resData.error || "Approve & release failed");
       }
 
-      alert(`✅ Verified delivery! Contract-controlled settlement executed: ${escrow.amount} credited to contractor claimable balance. Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Approve & Release Funds for Escrow #${id}`);
+      }
       await syncWithServer();
     } catch (err: any) {
       console.error("Approval failed:", err);
@@ -457,7 +551,9 @@ export default function Home() {
         throw new Error(resData.error || "AI dispute resolution failed");
       }
 
-      alert(`✅ GenLayer AI Consensus reached! Contract-controlled settlement finalized on Bradbury. Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `AI Judicial Dispute Resolution for #${id}`);
+      }
       setComplaintInput("");
       setSelectedEscrow(null);
       await syncWithServer();
@@ -487,7 +583,9 @@ export default function Home() {
         throw new Error(resData.error || "Reopen task failed");
       }
 
-      alert(`✅ Task re-opened on-chain! Refunded balance re-locked into contract custody. Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Reopen Task #${id}`);
+      }
       await syncWithServer();
     } catch (err: any) {
       console.error("Error reopening task:", err);
@@ -517,7 +615,9 @@ export default function Home() {
         throw new Error(resData.error || "Withdrawal failed");
       }
 
-      alert(`✅ Claimed settled funds from contract! Tx: ${resData.txHash?.slice(0, 14)}...`);
+      if (resData.txHash) {
+        trackTxProgress(resData.txHash, `Withdraw Settled Claimable Funds`);
+      }
       await syncWithServer();
     } catch (err: any) {
       console.error("Withdrawal error:", err);
@@ -617,6 +717,58 @@ export default function Home() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-8">
+        {/* Real-time On-Chain Transaction Progress Bar */}
+        {pendingTx && (
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-[#0d1527] to-slate-900 border border-cyan-500/40 shadow-xl shadow-cyan-950/30 animate-in fade-in slide-in-from-top-4 duration-300">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs uppercase font-mono tracking-wider text-cyan-400 font-bold">
+                      GenLayer On-Chain Execution
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                      {pendingTx.progress}%
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-semibold text-white mt-0.5">{pendingTx.actionName}</h4>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 text-xs font-mono">
+                <a
+                  href={`https://explorer-bradbury.genlayer.com/tx/${pendingTx.hash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-cyan-300 hover:text-cyan-200 transition flex items-center gap-1.5"
+                >
+                  <span>Tx: {pendingTx.hash.slice(0, 8)}...{pendingTx.hash.slice(-6)}</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* Progress Track */}
+            <div className="w-full bg-slate-950/80 rounded-full h-2.5 overflow-hidden border border-slate-800 p-0.5 mb-2">
+              <div
+                className="bg-gradient-to-r from-cyan-500 via-emerald-400 to-teal-400 h-full rounded-full transition-all duration-500 ease-out shadow-sm shadow-cyan-500/50"
+                style={{ width: `${pendingTx.progress}%` }}
+              ></div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                {pendingTx.statusText}
+              </span>
+              <span className="font-mono text-[11px] text-slate-500 hidden sm:inline">Multi-Validator Consensus</span>
+            </div>
+          </div>
+        )}
+
         {/* Banner / Protocol Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="p-5 rounded-2xl bg-[#0e111a] border border-slate-800/80 shadow-sm">
@@ -642,7 +794,7 @@ export default function Home() {
               rel="noreferrer"
               className="text-sm font-mono text-cyan-400 hover:underline truncate block"
             >
-              0x8B6F...1a16
+              {CONTRACT_ADDRESS.slice(0, 6)}...{CONTRACT_ADDRESS.slice(-4)}
             </a>
             <p className="text-xs text-slate-500 mt-1">Equivalence Arbitration</p>
           </div>
