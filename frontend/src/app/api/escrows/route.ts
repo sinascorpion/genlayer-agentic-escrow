@@ -5,7 +5,7 @@ import { CalldataAddress } from "genlayer-js/types";
 import { createWalletClient, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152") as `0x${string}`;
+const CONTRACT_ADDRESS = (process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || "0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff") as `0x${string}`;
 const RELAYER_KEY = (process.env.GENLAYER_RELAYER_KEY || "0x900bd9efffd809b30c2cd83b43d60e96790ad3b5aff6031d78dc148d9bb1e446") as `0x${string}`;
 
 function addressToCalldataAddress(addr: string) {

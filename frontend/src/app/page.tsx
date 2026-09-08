@@ -24,7 +24,7 @@ import {
   Loader2
 } from "lucide-react";
 
-const CONTRACT_ADDRESS = "0x6E8f51b3d01791Bc2CbfEa8E0D24281C4A4E0152";
+const CONTRACT_ADDRESS = "0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff";
 const BRADBURY_RPC = "https://rpc-bradbury.genlayer.com";
 const CHAIN_EXPLORER = "https://explorer-bradbury.genlayer.com";
 

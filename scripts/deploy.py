@@ -38,7 +38,7 @@ def main():
         contract_code = f.read()
 
     print("Deploying contract (this may take ~30-60 seconds on Bradbury)...")
-    constructor_args = [deployer_address]  # initial_owner
+    constructor_args = []  # initial_owner auto-set to gl.message.sender_address
 
     tx_hash = client.deploy_contract(
         code=contract_code,
