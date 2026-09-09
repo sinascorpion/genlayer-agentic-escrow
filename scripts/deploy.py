@@ -12,7 +12,7 @@ from genlayer_py.accounts import create_account
 env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 try:
     with open(env_path, "r") as f:
-        PRIVATE_KEY = f.read().strip()
+        PRIVATE_KEY = f.read().split()[0].strip()
 except FileNotFoundError:
     print("ERROR: .env file not found. Create one with your private key.")
     sys.exit(1)

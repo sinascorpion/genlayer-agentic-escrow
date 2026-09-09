@@ -3,7 +3,7 @@
 > **Autonomous AI-Powered Judicial Dispute Resolution and Trustless Escrow Protocol on GenLayer**
 
 [![Live DApp](https://img.shields.io/badge/Live%20DApp-agenticescrow.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://agenticescrow.vercel.app)
-[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0x55d1...7Aff-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff)
+[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0xC03E...030C-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C)
 [![Network](https://img.shields.io/badge/GenLayer-Bradbury%20Testnet%20(4221)-8b5cf6?style=for-the-badge)](https://genlayer.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,7 @@
 **AgenticEscrow** is a next-generation decentralized escrow protocol powered by GenLayer's non-deterministic Intelligent Contracts. It combines decentralized smart contract security with autonomous AI multi-validator arbitration to eliminate human intermediaries, unfair dispute resolutions, and excessive platform commissions in digital commerce, software contracting, and freelancing.
 
 - 🌐 **Live Website / DApp**: [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app)
-- 📜 **Deployed Intelligent Contract**: [`0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff`](https://explorer-bradbury.genlayer.com/address/0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff)
+- 📜 **Deployed Intelligent Contract**: [`0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C`](https://explorer-bradbury.genlayer.com/address/0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C)
 - ⛓️ **Network**: GenLayer Bradbury Testnet (Chain ID: `4221` / `0x107d`)
 - 🔍 **Block Explorer**: [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com)
 
@@ -124,16 +124,16 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 
 | Method | Type | Parameters | Description |
 | :--- | :--- | :--- | :--- |
-| `create_escrow` | `write` | seller: Address, title: str, specifications: str, amount: u256 | Creates a new escrow agreement and locks deposited funds in contract custody. |
-| `apply_for_task` | `write` | escrow_id: u64, proposal: str | Freelancers apply for open bounties with proposals and portfolio details. |
-| `assign_contractor` | `write` | escrow_id: u64, selected_contractor: Address | Buyer reviews candidate proposals and assigns the chosen contractor. |
-| `submit_work` | `write` | escrow_id: u64, delivery_details: str | Assigned contractor submits proof or deliverable links. |
+| `create_escrow` | `write.payable` | seller: Address, title: str, specifications: str, amount: u256 | Atomically binds native attached GEN deposit to escrow creation and locks custody. |
+| `apply_for_task` | `write` | escrow_id: u64, proposal: str | Candidates apply for open bounties with proposals and portfolio details. |
+| `assign_contractor` | `write` | escrow_id: u64, selected_contractor: Address | Buyer reviews candidate proposals and assigns chosen contractor. |
+| `submit_work` | `write` | escrow_id: u64, delivery_details: str | Assigned contractor submits deliverable proof or work links. |
 | `approve_and_release` | `write` | escrow_id: u64 | Buyer manually approves; contract settles 100% custody funds to seller claimable balance. |
-| `resolve_dispute_with_ai` | `write` | escrow_id: u64, buyer_complaint: str | Triggers multi-validator LLM arbitration and executes contract-controlled settlement (RELEASE 100%, REFUND 100%, or SPLIT 50/50). |
-| `reopen_task` | `write` | escrow_id: u64 | Buyer resets a refunded escrow back to open bounty mode, re-locking funds into contract custody. |
-| `withdraw_funds` | `write` | None | Beneficiary claims and withdraws their settled claimable balance. |
+| `resolve_dispute_with_ai` | `write` | escrow_id: u64, buyer_complaint: str | Multi-validator LLM judicial arbitration with fail-closed consensus and substantive verification. |
+| `reopen_task` | `write` | escrow_id: u64 | Buyer reopens refunded task; enforces conservation of funds (`balance >= amount`). |
+| `withdraw_funds` | `write` | beneficiary: Address | Beneficiary withdraws settled balance via native contract payout (`emit_transfer`). |
 | `get_claimable_balance` | `view` | user: Address | Returns settled claimable balance for a given wallet address. |
-| `get_escrow` | `view` | escrow_id: u64 | Returns full escrow data, locked custody funds, applicants list, verdicts, and confidence scores. |
+| `get_escrow` | `view` | escrow_id: u64 | Returns full escrow state, locked custody funds, applicants, verdict, and confidence scores. |
 | `get_total_escrows` | `view` | None | Returns total number of escrows created. |
 
 ---
@@ -143,8 +143,8 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 | Parameter | Value |
 | :--- | :--- |
 | **Live Web App** | [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app) |
-| **Intelligent Contract Address** | [`0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff`](https://explorer-bradbury.genlayer.com/address/0x55d1C95311E4544b900C2100c1bAC9A93a9B7Aff) |
-| **Deployment Transaction** | [`0xd31f4c14f6322492e25f799e37d51bae2eb94abd8736c3206f30a1de21253055`](https://explorer-bradbury.genlayer.com/tx/0xd31f4c14f6322492e25f799e37d51bae2eb94abd8736c3206f30a1de21253055) |
+| **Intelligent Contract Address** | [`0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C`](https://explorer-bradbury.genlayer.com/address/0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C) |
+| **Deployment Transaction** | [`0xd97dbfedb5195538ab02e4f017831607d36fe3fb5c113a216472f9e5782c22bc`](https://explorer-bradbury.genlayer.com/tx/0xd97dbfedb5195538ab02e4f017831607d36fe3fb5c113a216472f9e5782c22bc) |
 | **Network Name** | GenLayer Bradbury Testnet |
 | **Chain ID** | 4221 (0x107d) |
 | **RPC Endpoint** | https://rpc-bradbury.genlayer.com |

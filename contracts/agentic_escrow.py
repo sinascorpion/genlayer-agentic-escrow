@@ -27,16 +27,14 @@ class AgenticEscrow(gl.Contract):
     applicants: TreeMap[str, str]
 
     # Custody & Balance Management: Track contract-controlled escrowed funds and settled balances
-    # escrow_locked_funds: amount locked in escrow_id
     escrow_locked_funds: TreeMap[str, u256]
-    # claimable_balances: settled funds credited to beneficiary address
-    claimable_balances: TreeMap[Address, u256]
+    claimable_balances: TreeMap[str, u256]
 
     def __init__(self):
         self.owner = gl.message.sender_address
         self.escrow_counter = 0
 
-    @gl.public.write
+    @gl.public.write.payable
     def create_escrow(
         self,
         seller: Address,
@@ -45,7 +43,11 @@ class AgenticEscrow(gl.Contract):
         amount: u256,
     ) -> u64:
         buyer = gl.message.sender_address
+        attached_value = gl.message.value
+
         assert amount > 0, "Escrow deposit amount must be greater than zero"
+        # Atomically enforce that native attached value matches or covers the escrow amount
+        assert attached_value >= amount, f"Attached value {attached_value} is less than required escrow amount {amount}"
 
         self.escrow_counter += 1
         escrow_id = self.escrow_counter
@@ -60,33 +62,33 @@ class AgenticEscrow(gl.Contract):
         self.applicants[key] = "[]"
         self.confidence_scores[key] = 0
 
-        # Custody: Atomically lock funds under contract control
+        # Custody: Atomically lock backed funds under contract control
         self.escrow_locked_funds[key] = amount
 
         zero_addr = Address("0x0000000000000000000000000000000000000000")
         if seller == zero_addr:
             self.statuses[key] = 5  # OPEN_FOR_APPLICANTS
-            self.verdict_summaries[key] = f"Open bounty created with {amount} locked in contract custody. Awaiting applicants."
+            self.verdict_summaries[key] = f"Open bounty created with {amount} backed in contract custody. Awaiting applicants."
         else:
             self.statuses[key] = 0  # PENDING_SUBMISSION
-            self.verdict_summaries[key] = f"Direct escrow created with {amount} locked in contract custody. Awaiting deliverable."
+            self.verdict_summaries[key] = f"Direct escrow created with {amount} backed in contract custody. Awaiting deliverable."
 
         return escrow_id
 
     @gl.public.write
     def apply_for_task(self, escrow_id: u64, proposal: str) -> None:
-        sender = gl.message.sender_address
+        applicant = gl.message.sender_address
         key = str(escrow_id)
         current_status = self.statuses.get(key, 255)
         assert current_status == 5, "Escrow is not open for applications"
 
+        buyer = self.buyers.get(key)
+        assert applicant != buyer, "Buyer cannot apply for own escrow"
+
         raw_apps = self.applicants.get(key, "[]")
         apps_list = json.loads(raw_apps) if raw_apps else []
 
-        applicant_str = str(sender)
-        if proposal.startswith("[Applicant:0x") and len(proposal) >= 53 and proposal[53:55] == "] ":
-            applicant_str = proposal[11:53]
-
+        applicant_str = str(applicant)
         for app in apps_list:
             if app.get("address", "").lower() == applicant_str.lower():
                 raise gl.UserError("Already applied for this task")
@@ -103,11 +105,13 @@ class AgenticEscrow(gl.Contract):
         key = str(escrow_id)
         buyer = self.buyers.get(key)
 
-        # Authenticated verification: sender must be buyer or owner
-        assert sender == buyer or sender == self.owner, "Only buyer can assign contractor"
+        assert sender == buyer, "Unauthorized: only buyer can assign contractor"
 
         current_status = self.statuses.get(key, 255)
         assert current_status == 5, "Escrow is not in open application state"
+
+        zero_addr = Address("0x0000000000000000000000000000000000000000")
+        assert selected_contractor != zero_addr, "Invalid contractor address"
 
         self.sellers[key] = selected_contractor
         self.statuses[key] = 0  # PENDING_SUBMISSION
@@ -119,10 +123,11 @@ class AgenticEscrow(gl.Contract):
         key = str(escrow_id)
         seller = self.sellers.get(key)
 
-        assert sender == seller or sender == self.owner, "Only assigned seller can submit work"
+        assert sender == seller, "Unauthorized: only assigned seller can submit work"
 
         current_status = self.statuses.get(key, 255)
         assert current_status == 0, "Escrow not in pending submission state"
+        assert len(delivery_details.strip()) > 0, "Delivery details cannot be empty"
 
         self.deliveries[key] = delivery_details
         self.statuses[key] = 1  # SUBMITTED
@@ -135,10 +140,10 @@ class AgenticEscrow(gl.Contract):
         key = str(escrow_id)
         buyer = self.buyers.get(key)
 
-        assert sender == buyer or sender == self.owner, "Only buyer can approve delivery and release funds"
+        assert sender == buyer, "Unauthorized: only buyer can approve delivery and release funds"
 
         current_status = self.statuses.get(key, 255)
-        assert current_status == 1, "Escrow must be submitted to approve"
+        assert current_status == 1, "Escrow must be in SUBMITTED state to approve"
 
         seller = self.sellers.get(key)
         locked = self.escrow_locked_funds.get(key, 0)
@@ -146,24 +151,25 @@ class AgenticEscrow(gl.Contract):
 
         # Contract Settlement: atomically release 100% of locked funds to seller claimable balance
         self.escrow_locked_funds[key] = 0
-        current_seller_bal = self.claimable_balances.get(seller, 0)
-        self.claimable_balances[seller] = current_seller_bal + locked
+        current_seller_bal = self.claimable_balances.get(str(seller), 0)
+        self.claimable_balances[str(seller)] = current_seller_bal + locked
 
         self.statuses[key] = 2  # RELEASED_TO_SELLER
-        self.verdict_summaries[key] = f"Buyer verified delivery. Contract-controlled settlement: {locked} released to seller."
+        self.verdict_summaries[key] = f"Buyer verified delivery. Contract settlement: {locked} released to seller claimable balance."
 
     @gl.public.write
     def resolve_dispute_with_ai(self, escrow_id: u64, buyer_complaint: str) -> None:
         """
         Multi-validator non-deterministic LLM consensus judicial dispute arbitration.
         Validators independently evaluate delivery evidence against specifications and dispute reason.
+        Validators fail closed if consensus on verdict decision cannot be verified.
         """
         sender = gl.message.sender_address
         key = str(escrow_id)
         buyer = self.buyers.get(key)
         seller = self.sellers.get(key)
 
-        assert sender == buyer or sender == seller or sender == self.owner, "Unauthorized: only buyer, contractor, or contract authority can initiate dispute"
+        assert sender == buyer or sender == seller, "Unauthorized: only buyer or contractor can initiate dispute"
 
         current_status = self.statuses.get(key, 255)
         assert current_status == 1, "Dispute can only be raised on submitted work"
@@ -206,9 +212,10 @@ Provide your output ONLY in valid JSON format:
 
         def validator_fn(leader_result) -> bool:
             """
-            Independent Validator Execution:
+            Independent Substantive Validator Execution:
             Validators independently verify the delivery evidence and settlement decision by executing
             the LLM prompt themselves and asserting judicial decision equivalence.
+            FAILS CLOSED: Never accepts format-only fallbacks. If validator execution fails or disagrees, returns False.
             """
             if not isinstance(leader_result, gl.vm.Return):
                 return False
@@ -220,18 +227,21 @@ Provide your output ONLY in valid JSON format:
             if lead_decision not in ("RELEASE", "REFUND", "SPLIT"):
                 return False
 
+            lead_summary = str(lead_data.get("summary", "")).strip()
+            if len(lead_summary) < 5:
+                return False
+
             # Independent validation: execute prompt independently on validator node
             try:
                 val_res = gl.nondet.exec_prompt(prompt, response_format="json")
                 if isinstance(val_res, dict):
                     val_decision = str(val_res.get("decision", "")).strip().upper()
-                    # Verify decision consensus between leader and validator
+                    # Substantive equivalence check: decision must strictly match
                     return lead_decision == val_decision
+                return False
             except Exception:
-                pass
-
-            # Fallback format validation if validator LLM timeout occurs
-            return len(str(lead_data.get("summary", "")).strip()) > 0
+                # Fail-closed security rule: reject rather than accepting format-only fallback
+                return False
 
         result = gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 
@@ -245,24 +255,24 @@ Provide your output ONLY in valid JSON format:
         if decision == "RELEASE":
             # 100% to seller
             self.statuses[key] = 2  # RELEASED_TO_SELLER
-            cur_seller_bal = self.claimable_balances.get(seller, 0)
-            self.claimable_balances[seller] = cur_seller_bal + locked
+            cur_seller_bal = self.claimable_balances.get(str(seller), 0)
+            self.claimable_balances[str(seller)] = cur_seller_bal + locked
             settlement_note = f"100% of escrowed funds ({locked}) settled and credited to contractor."
         elif decision == "REFUND":
             # 100% refund to buyer
             self.statuses[key] = 3  # REFUNDED_TO_BUYER
-            cur_buyer_bal = self.claimable_balances.get(buyer, 0)
-            self.claimable_balances[buyer] = cur_buyer_bal + locked
+            cur_buyer_bal = self.claimable_balances.get(str(buyer), 0)
+            self.claimable_balances[str(buyer)] = cur_buyer_bal + locked
             settlement_note = f"100% of escrowed funds ({locked}) refunded and credited to buyer."
         else:
             # 50/50 Split
             self.statuses[key] = 4  # SPLIT_50_50
             half = locked // 2
             rem = locked - half
-            cur_seller_bal = self.claimable_balances.get(seller, 0)
-            cur_buyer_bal = self.claimable_balances.get(buyer, 0)
-            self.claimable_balances[seller] = cur_seller_bal + half
-            self.claimable_balances[buyer] = cur_buyer_bal + rem
+            cur_seller_bal = self.claimable_balances.get(str(seller), 0)
+            cur_buyer_bal = self.claimable_balances.get(str(buyer), 0)
+            self.claimable_balances[str(seller)] = cur_seller_bal + half
+            self.claimable_balances[str(buyer)] = cur_buyer_bal + rem
             settlement_note = f"Split 50/50 settlement: {half} to contractor, {rem} refunded to buyer."
 
         self.verdict_summaries[key] = f"[{decision}] {summary} | Contract Settlement: {settlement_note}"
@@ -270,21 +280,28 @@ Provide your output ONLY in valid JSON format:
 
     @gl.public.write
     def reopen_task(self, escrow_id: u64) -> None:
-        """Allows buyer to re-open a refunded task for new applicants without locking additional funds."""
+        """
+        Allows buyer to re-open a refunded task for new applicants without attaching new external funds.
+        Conservation of funds check: STRICTLY verifies buyer has unwithdrawn claimable balance >= amount.
+        """
         sender = gl.message.sender_address
         key = str(escrow_id)
         buyer = self.buyers.get(key)
 
-        assert sender == buyer or sender == self.owner, "Only buyer can re-open task"
+        assert sender == buyer, "Unauthorized: only buyer can re-open task"
 
         current_status = self.statuses.get(key, 255)
         assert current_status == 3, "Only refunded/disputed tasks can be re-opened"
 
         amount = self.amounts.get(key, 0)
-        # Re-lock the refunded amount into escrow custody
-        cur_buyer_bal = self.claimable_balances.get(buyer, 0)
-        if cur_buyer_bal >= amount:
-            self.claimable_balances[buyer] = cur_buyer_bal - amount
+        assert amount > 0, "Invalid escrow amount"
+
+        # Conservation of funds: Buyer MUST have unwithdrawn claimable balance covering the amount
+        cur_buyer_bal = self.claimable_balances.get(str(buyer), 0)
+        assert cur_buyer_bal >= amount, f"Insufficient unwithdrawn balance to reopen: available {cur_buyer_bal}, required {amount}"
+
+        # Deduct from claimable balance and re-lock into escrow custody
+        self.claimable_balances[str(buyer)] = cur_buyer_bal - amount
         self.escrow_locked_funds[key] = amount
 
         self.sellers[key] = Address("0x0000000000000000000000000000000000000000")
@@ -292,22 +309,31 @@ Provide your output ONLY in valid JSON format:
         self.deliveries[key] = ""
         self.applicants[key] = "[]"
         self.confidence_scores[key] = 0
-        self.verdict_summaries[key] = f"Task re-opened after dispute. {amount} re-locked in contract custody. Accepting new applications."
+        self.verdict_summaries[key] = f"Task re-opened after dispute. {amount} re-locked from buyer claimable balance into escrow custody. Accepting new applications."
 
     @gl.public.write
     def withdraw_funds(self, beneficiary: Address) -> u256:
-        """Beneficiary claims and withdraws their settled funds."""
+        """
+        Beneficiary claims and withdraws their settled funds.
+        Strict authorization: Only the beneficiary can withdraw their own settled funds.
+        Executes contract-native payout via emit_transfer to transfer native GEN to the beneficiary wallet.
+        """
         sender = gl.message.sender_address
-        assert sender == beneficiary or sender == self.owner, "Unauthorized withdrawal"
-        balance = self.claimable_balances.get(beneficiary, 0)
+        assert sender == beneficiary, "Unauthorized: caller can only withdraw their own settled funds"
+
+        balance = self.claimable_balances.get(str(beneficiary), 0)
         assert balance > 0, "No claimable balance available for withdrawal"
-        self.claimable_balances[beneficiary] = 0
+
+        self.claimable_balances[str(beneficiary)] = 0
+
+        # Contract-native payout: trigger external message to transfer native funds to beneficiary
+        gl.get_contract_at(beneficiary).emit_transfer(value=balance)
         return balance
 
     @gl.public.view
     def get_claimable_balance(self, user: Address) -> str:
         """Returns the current settled claimable balance for an account."""
-        return str(self.claimable_balances.get(user, 0))
+        return str(self.claimable_balances.get(str(user), 0))
 
     @gl.public.view
     def get_escrow(self, escrow_id: u64) -> dict:
