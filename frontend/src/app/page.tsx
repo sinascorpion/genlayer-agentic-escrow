@@ -1079,6 +1079,33 @@ export default function Home() {
                     </div>
                   )}
 
+                  {/* Submitted Proposals / Applicants History Box */}
+                  {escrow.applicants && escrow.applicants.length > 0 && (
+                    <div className="p-3.5 rounded-xl bg-[#111420] border border-blue-500/20 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-blue-300 flex items-center gap-1.5">
+                          <Users className="h-3.5 w-3.5" />
+                          Candidate Proposals ({escrow.applicants.length}):
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {escrow.applicants.map((app, appIdx) => (
+                          <div key={appIdx} className="bg-[#0b0d14] p-2.5 rounded-lg border border-slate-800 text-xs">
+                            <div className="flex items-center justify-between text-[11px] font-mono text-cyan-400 mb-1">
+                              <span>Applicant: {app.address}</span>
+                              {app.address.toLowerCase() === escrow.seller.toLowerCase() && (
+                                <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded font-sans text-[10px]">
+                                  Assigned Contractor
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-slate-300 font-sans text-xs">{app.proposal}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Action Buttons depending on status & role */}
                   <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
                     {escrow.status === 5 && (
