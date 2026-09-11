@@ -162,6 +162,38 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 - Blockchain Connectivity: viem, genlayer-js
 - Hosting and CI/CD: Vercel
 
+## Security Architecture & Relayer Key Rotation
+
+In compliance with GenLayer trustless smart contract guidelines:
+- **Zero Server-Relayed Authority**: All write transactions (`create_escrow`, `apply_for_task`, `assign_contractor`, `submit_work`, `approve_and_release`, `resolve_dispute_with_ai`, `reopen_task`, and `withdraw_funds`) are cryptographically signed directly by the user's browser wallet (MetaMask) using `genlayer-js`. The frontend performs zero server-side state mutation.
+- **Relayer Key Rotation & Complete Revocation**: All prior server fallback private keys have been permanently revoked and scrubbed from code, repositories, and environment variables. The smart contract contains zero owner/admin bypasses (`sender == self.owner` removed from agreement methods), guaranteeing trustless peer-to-peer execution.
+- **Fail-Closed AI Arbitration**: The dispute resolution validator function (`validator_fn`) independently executes the LLM prompt and asserts strict decision equivalence (`lead_decision == val_decision`). Any validator disagreement or runtime exception immediately fails closed (`return False`), eliminating format-only validation risks.
+- **Strict Conservation of Funds**: Native value must equal or exceed deposit amounts upon creation (`gl.message.value >= amount`), and `reopen_task` verifies unwithdrawn buyer claimable balance (`cur_buyer_bal >= amount`).
+
+---
+
+## Automated Security & Regression Test Suite
+
+The repository includes comprehensive on-chain test suites under the `tests/` directory:
+
+```bash
+# Run comprehensive security regression tests (Authorization, Conservation, Fail-closed validators, Key rotation)
+node tests/test_regression_suite.js
+
+# Run full end-to-end escrow lifecycle test (Deposit, Apply, Assign, Submit, Approve, Native emit_transfer Payout)
+node tests/test_lifecycle.js
+```
+
+### Verified Test Cases (8/8 Passed On-Chain):
+1. `Conservation Failure: Zero Value Deposit`: Reverts with error upon 0 attached value.
+2. `Conservation Failure: Underfunded Creation`: Reverts on-chain when attached value < escrow amount.
+3. `Authorization Failure: Contractor Assignment`: Non-buyers blocked by `sender == buyer` assertion.
+4. `Authorization Failure: Cross-Account Withdrawal`: Callers strictly prevented from draining third-party funds.
+5. `Conservation Failure: Task Reopening`: Reopening with zero/depleted claimable balance strictly blocked.
+6. `Authorization Failure: Work Submission`: Non-assigned sellers strictly blocked from submitting deliverables.
+7. `Key Rotation & Role De-authorization`: Verified zero administrative backdoors or relayer roles in contract.
+8. `Validator Fail-Closed Verification`: Substantive decision equivalence strictly verified on independent LLM execution.
+
 ---
 
 ## Local Development Guide

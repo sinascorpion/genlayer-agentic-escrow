@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createClient } from "genlayer-js";
+import { testnetBradbury } from "genlayer-js/chains";
+import { CalldataAddress } from "genlayer-js/types";
 import { 
   ShieldCheck, 
   Scale, 
@@ -314,7 +317,25 @@ export default function Home() {
     }, 90000);
   };
 
-  // Handle Create Escrow on-chain (Direct or Open Bounty with contract custody)
+  // Helper to convert hex string address to CalldataAddress for genlayer-js
+  const toCalldataAddr = (addrStr: string) => {
+    const clean = addrStr.startsWith("0x") ? addrStr.slice(2) : addrStr;
+    return new CalldataAddress(Buffer.from(clean, "hex"));
+  };
+
+  // Helper to obtain a user-signed client connected directly to the user's browser wallet (MetaMask)
+  const getUserClient = () => {
+    if (typeof window === "undefined" || !(window as any).ethereum || !account) {
+      throw new Error("Please connect your Web3 wallet (MetaMask) first.");
+    }
+    return createClient({
+      chain: testnetBradbury,
+      account: account as `0x${string}`,
+      provider: (window as any).ethereum,
+    });
+  };
+
+  // Handle Create Escrow on-chain: Direct user-signed payable call with atomic native custody
   const handleCreateEscrow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!account) {
@@ -341,55 +362,20 @@ export default function Home() {
     try {
       const isBounty = escrowMode === "bounty";
       const assignedSeller = isBounty ? "0x0000000000000000000000000000000000000000" : newSeller;
-      const amountWei = (BigInt(Math.floor(numAmount * 1e6)) * BigInt(1e12)).toString();
+      const amountWei = BigInt(Math.floor(numAmount * 1e6)) * BigInt(1e12);
 
-      // Trigger MetaMask popup to transfer and lock funds directly from user wallet
-      let userTxHash = "";
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const hexValue = "0x" + BigInt(amountWei).toString(16);
-          userTxHash = await (window as any).ethereum.request({
-            method: "eth_sendTransaction",
-            params: [
-              {
-                from: account,
-                to: CONTRACT_ADDRESS,
-                value: hexValue,
-              },
-            ],
-          });
-          console.log("MetaMask deposit tx approved:", userTxHash);
-        } catch (metamaskErr: any) {
-          if (metamaskErr.code === 4001) {
-            alert("Deposit transaction rejected in MetaMask.");
-            setIsCreating(false);
-            return;
-          }
-          console.warn("Wallet deposit warning:", metamaskErr);
-        }
-      }
+      const client = getUserClient();
+      const sellerArg = toCalldataAddr(assignedSeller);
 
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create_escrow",
-          buyer: account,
-          seller: assignedSeller,
-          title: newTitle,
-          specifications: newSpec,
-          amountWei: amountWei
-        })
+      // Direct user-signed payable transaction locking native GEN into escrow custody
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "create_escrow",
+        args: [sellerArg, newTitle, newSpec, amountWei],
+        value: amountWei,
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Contract call failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Create Escrow: "${newTitle}"`);
-      }
+      trackTxProgress(txHash, `Create Escrow: "${newTitle}"`);
       setNewTitle("");
       setNewSeller("");
       setNewAmount("");
@@ -397,13 +383,13 @@ export default function Home() {
       await syncWithServer();
     } catch (err: any) {
       console.error("Error creating on-chain escrow:", err);
-      alert(`Failed to create escrow: ${err.message || "Unknown error"}`);
+      alert(`Failed to create escrow: ${err.message || "User rejected or error occurred"}`);
     } finally {
       setIsCreating(false);
     }
   };
 
-  // Handle Apply for Bounty Task on-chain
+  // Handle Apply for Bounty Task on-chain: Direct user-signed call
   const handleApplyForTask = async (id: number) => {
     if (!account) {
       alert("Please connect your wallet first to submit an application.");
@@ -416,66 +402,49 @@ export default function Home() {
 
     setIsApplying(true);
     try {
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "apply_for_task",
-          escrowId: id,
-          applicant: account,
-          proposal: `${account}: ${proposalInput.trim()}`
-        })
+      const client = getUserClient();
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "apply_for_task",
+        args: [BigInt(id), proposalInput.trim()],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Application submission failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Apply for Task #${id}`, id);
-      }
+      trackTxProgress(txHash, `Apply for Task #${id}`, id);
       setProposalInput("");
       setApplyingEscrow(null);
       await syncWithServer();
     } catch (err: any) {
       console.error("Failed to submit application", err);
-      alert(`Error applying: ${err.message || "Unknown error"}`);
+      alert(`Error applying: ${err.message || "User rejected or error occurred"}`);
     } finally {
       setIsApplying(false);
     }
   };
 
-  // Handle Assign Contractor by Buyer on-chain
+  // Handle Assign Contractor by Buyer on-chain: Direct user-signed call
   const handleAssignContractor = async (escrowId: number, contractorAddress: string) => {
     try {
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "assign_contractor",
-          escrowId,
-          contractor: contractorAddress
-        })
+      const client = getUserClient();
+      const contractorArg = toCalldataAddr(contractorAddress);
+
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "assign_contractor",
+        args: [BigInt(escrowId), contractorArg],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Failed to assign contractor");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Assign Contractor for Escrow #${escrowId}`, escrowId);
-      }
+      trackTxProgress(txHash, `Assign Contractor for Escrow #${escrowId}`, escrowId);
       setViewingApplicantsEscrow(null);
       await syncWithServer();
     } catch (err: any) {
       console.error("Failed to assign contractor", err);
-      alert(`Error assigning: ${err.message || "Unknown error"}`);
+      alert(`Error assigning: ${err.message || "User rejected or error occurred"}`);
     }
   };
 
-  // Handle Submit Work on-chain
+  // Handle Submit Work on-chain: Direct user-signed call
   const handleSubmitWork = async (id: number) => {
     if (!deliveryInput) {
       alert("Please enter work delivery proof/links.");
@@ -483,70 +452,53 @@ export default function Home() {
     }
     setIsSubmittingWork(true);
     try {
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "submit_work",
-          escrowId: id,
-          deliveryProof: deliveryInput
-        })
+      const client = getUserClient();
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "submit_work",
+        args: [BigInt(id), deliveryInput.trim()],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Deliverable submission failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Submit Work Delivery Proof for #${id}`, id);
-      }
+      trackTxProgress(txHash, `Submit Work Delivery Proof for #${id}`, id);
       setDeliveryInput("");
       setSelectedEscrow(null);
       await syncWithServer();
     } catch (err: any) {
       console.error("Failed to submit deliverables", err);
-      alert(`Error submitting work: ${err.message || "Unknown error"}`);
+      alert(`Error submitting work: ${err.message || "User rejected or error occurred"}`);
     } finally {
       setIsSubmittingWork(false);
     }
   };
 
-  // Handle Manual Approval — triggers contract-controlled release of locked custody funds to seller
+  // Handle Manual Approval on-chain: Direct user-signed call
   const handleApprove = async (id: number) => {
-    const escrow = escrows.find(e => e.id === id);
+    const escrow = escrows.find((e) => e.id === id);
     if (!escrow) return;
 
-    if (!confirm(`Are you sure you want to approve delivery and trigger contract-controlled release of ${escrow.amount} to the contractor?`)) {
+    if (!confirm(`Are you sure you want to approve delivery and release ${escrow.amount} to the contractor?`)) {
       return;
     }
 
     try {
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "approve_and_release",
-          escrowId: id
-        })
+      const client = getUserClient();
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "approve_and_release",
+        args: [BigInt(id)],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Approve & release failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Approve & Release Funds for Escrow #${id}`, id);
-      }
+      trackTxProgress(txHash, `Approve & Release Funds for Escrow #${id}`, id);
       await syncWithServer();
     } catch (err: any) {
       console.error("Approval failed:", err);
-      alert(`Transaction failed: ${err.message || "Unknown error"}`);
+      alert(`Transaction failed: ${err.message || "User rejected or error occurred"}`);
     }
   };
 
-  // Handle Trigger AI Dispute Resolution — multi-validator LLM consensus with contract-controlled settlement (release, refund, split)
+  // Handle Trigger AI Dispute on-chain: Direct user-signed call
   const handleTriggerAiDispute = async (id: number) => {
     if (!complaintInput) {
       alert("Please describe the dispute or complaint.");
@@ -564,64 +516,47 @@ export default function Home() {
         setAiAnalysisLog("Equivalence validators executing judicial consensus and financial settlement...");
       }, 5000);
 
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "resolve_dispute_with_ai",
-          escrowId: id,
-          complaint: complaintInput
-        })
+      const client = getUserClient();
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "resolve_dispute_with_ai",
+        args: [BigInt(id), complaintInput.trim()],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "AI dispute resolution failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `AI Judicial Dispute Resolution for #${id}`, id);
-      }
+      trackTxProgress(txHash, `AI Judicial Dispute Resolution for #${id}`, id);
       setComplaintInput("");
       setSelectedEscrow(null);
       await syncWithServer();
     } catch (err: any) {
       console.error("AI dispute failed:", err);
-      alert(`Dispute resolution error: ${err.message || "Unknown error"}`);
+      alert(`Dispute resolution error: ${err.message || "User rejected or error occurred"}`);
     } finally {
       setIsResolvingAi(false);
       setAiAnalysisLog(null);
     }
   };
 
-  // Handle Re-open Task after REFUND on-chain — re-locks funds in contract custody and resets bounty
+  // Handle Re-open Task on-chain: Direct user-signed call
   const handleReopenTask = async (id: number) => {
     try {
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "reopen_task",
-          escrowId: id
-        })
+      const client = getUserClient();
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "reopen_task",
+        args: [BigInt(id)],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Reopen task failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Reopen Task #${id}`, id);
-      }
+      trackTxProgress(txHash, `Reopen Task #${id}`, id);
       await syncWithServer();
     } catch (err: any) {
       console.error("Error reopening task:", err);
-      alert(`Failed to reopen task: ${err.message || "Unknown error"}`);
+      alert(`Failed to reopen task: ${err.message || "User rejected or error occurred"}`);
     }
   };
 
-  // Handle Withdraw Settled Funds from Contract
+  // Handle Withdraw Settled Funds on-chain: Direct user-signed call passing beneficiary CalldataAddress
   const handleWithdrawFunds = async () => {
     if (!account) {
       alert("Please connect your wallet first.");
@@ -629,27 +564,21 @@ export default function Home() {
     }
     setIsWithdrawing(true);
     try {
-      const res = await fetch("/api/escrows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "withdraw_funds",
-          beneficiary: account
-        })
+      const client = getUserClient();
+      const beneficiaryArg = toCalldataAddr(account);
+
+      const txHash: string = await client.writeContract({
+        address: CONTRACT_ADDRESS,
+        functionName: "withdraw_funds",
+        args: [beneficiaryArg],
+        value: BigInt(0),
       });
 
-      const resData = await res.json();
-      if (!res.ok || !resData.success) {
-        throw new Error(resData.error || "Withdrawal failed");
-      }
-
-      if (resData.txHash) {
-        trackTxProgress(resData.txHash, `Withdraw Settled Claimable Funds`);
-      }
+      trackTxProgress(txHash, `Withdraw Settled Claimable Funds`);
       await syncWithServer();
     } catch (err: any) {
       console.error("Withdrawal error:", err);
-      alert(`Withdrawal failed: ${err.message || "Unknown error"}`);
+      alert(`Withdrawal failed: ${err.message || "User rejected or error occurred"}`);
     } finally {
       setIsWithdrawing(false);
     }
