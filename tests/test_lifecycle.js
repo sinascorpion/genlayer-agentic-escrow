@@ -3,12 +3,14 @@ const { createClient, createAccount } = require('genlayer-js');
 const { testnetBradbury } = require('genlayer-js/chains');
 const { CalldataAddress } = require('genlayer-js/types');
 
-const lines = fs.readFileSync('../.env', 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+const path = require('path');
+const envFile = fs.existsSync('.env') ? '.env' : (fs.existsSync('../.env') ? '../.env' : path.join(__dirname, '..', '.env'));
+const lines = fs.readFileSync(envFile, 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
 const acc1 = createAccount(lines[0]);
 const acc2 = createAccount(lines[1]);
 const client1 = createClient({ chain: testnetBradbury, account: acc1 });
 const client2 = createClient({ chain: testnetBradbury, account: acc2 });
-const contractAddr = '0x24eaC7acef492257bfA171FcA7c55F8A98DEA4A4';
+const contractAddr = '0x08909F12f0a008d09de35c5432b2cD67E0898972';
 
 function toCalldataAddress(hexStr) {
   const clean = hexStr.startsWith('0x') ? hexStr.slice(2) : hexStr;
@@ -17,7 +19,7 @@ function toCalldataAddress(hexStr) {
 
 async function waitForTx(client, txHash, action) {
   console.log(`Waiting for ${action} (${txHash})...`);
-  for (let i = 0; i < 35; i++) {
+  for (let i = 0; i < 40; i++) {
     await new Promise(r => setTimeout(r, 4000));
     try {
       const tx = await client.getTransaction({ hash: txHash });
@@ -35,6 +37,17 @@ async function waitForTx(client, txHash, action) {
 }
 
 async function testFlow() {
+  const depositAmount = BigInt('50000000000000000'); // 0.05 GEN
+  console.log('--- TEST 0: Buyer creates Open Escrow with 0.05 GEN deposit ---');
+  const zeroAddr = toCalldataAddress('0x0000000000000000000000000000000000000000');
+  const createTx = await client1.writeContract({
+    address: contractAddr,
+    functionName: 'create_escrow',
+    args: [zeroAddr, 'Full-Stack Website Audit', 'Comprehensive audit and deliverable verification', depositAmount],
+    value: depositAmount
+  });
+  await waitForTx(client1, createTx, 'Create Open Escrow');
+
   console.log('--- TEST 1: Contractor applies for Task #1 ---');
   const applyTx = await client2.writeContract({
     address: contractAddr,

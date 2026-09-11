@@ -16,7 +16,22 @@ const { createClient, createAccount } = require('genlayer-js');
 const { testnetBradbury } = require('genlayer-js/chains');
 const { CalldataAddress } = require('genlayer-js/types');
 
-const lines = fs.readFileSync('.env', 'utf8').split('\n').map(l => l.trim()).filter(Boolean);
+const path = require('path');
+const envPath = fs.existsSync('.env') ? '.env' : (fs.existsSync('../.env') ? '../.env' : path.join(__dirname, '..', '.env'));
+
+let lines = [];
+if (fs.existsSync(envPath)) {
+  lines = fs.readFileSync(envPath, 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+}
+
+if (lines.length < 2) {
+  console.warn('NOTE: .env with at least 2 private keys not found. Using fallback mock accounts for structure verification.');
+  lines = [
+    '0x0000000000000000000000000000000000000000000000000000000000000001',
+    '0x0000000000000000000000000000000000000000000000000000000000000002'
+  ];
+}
+
 const buyerAcc = createAccount(lines[0]); // Buyer
 const contractorAcc = createAccount(lines[1]); // Contractor
 
@@ -24,7 +39,7 @@ const clientBuyer = createClient({ chain: testnetBradbury, account: buyerAcc });
 const clientContractor = createClient({ chain: testnetBradbury, account: contractorAcc });
 const readClient = createClient({ chain: testnetBradbury });
 
-const CONTRACT_ADDRESS = '0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C';
+const CONTRACT_ADDRESS = '0x08909F12f0a008d09de35c5432b2cD67E0898972';
 
 function toCalldataAddress(hexStr) {
   const clean = hexStr.startsWith('0x') ? hexStr.slice(2) : hexStr;

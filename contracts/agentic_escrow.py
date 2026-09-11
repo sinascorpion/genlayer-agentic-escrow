@@ -5,6 +5,14 @@ from genlayer import *
 import json
 
 
+@gl.evm.contract_interface
+class _Recipient:
+    class View:
+        pass
+    class Write:
+        pass
+
+
 class AgenticEscrow(gl.Contract):
     owner: Address
     escrow_counter: u64
@@ -326,8 +334,8 @@ Provide your output ONLY in valid JSON format:
 
         self.claimable_balances[str(beneficiary)] = 0
 
-        # Contract-native payout: trigger external message to transfer native funds to beneficiary
-        gl.get_contract_at(beneficiary).emit_transfer(value=balance)
+        # Contract-native payout to EOA via documented EVM contract interface external message
+        _Recipient(beneficiary).emit_transfer(value=balance)
         return balance
 
     @gl.public.view

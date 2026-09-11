@@ -3,7 +3,7 @@
 > **Autonomous AI-Powered Judicial Dispute Resolution and Trustless Escrow Protocol on GenLayer**
 
 [![Live DApp](https://img.shields.io/badge/Live%20DApp-agenticescrow.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://agenticescrow.vercel.app)
-[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0xC03E...030C-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C)
+[![GenLayer Contract](https://img.shields.io/badge/GenLayer%20Contract-0x0890...8972-06b6d4?style=for-the-badge&logo=ethereum)](https://explorer-bradbury.genlayer.com/address/0x08909F12f0a008d09de35c5432b2cD67E0898972)
 [![Network](https://img.shields.io/badge/GenLayer-Bradbury%20Testnet%20(4221)-8b5cf6?style=for-the-badge)](https://genlayer.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
@@ -14,7 +14,7 @@
 **AgenticEscrow** is a next-generation decentralized escrow protocol powered by GenLayer's non-deterministic Intelligent Contracts. It combines decentralized smart contract security with autonomous AI multi-validator arbitration to eliminate human intermediaries, unfair dispute resolutions, and excessive platform commissions in digital commerce, software contracting, and freelancing.
 
 - 🌐 **Live Website / DApp**: [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app)
-- 📜 **Deployed Intelligent Contract**: [`0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C`](https://explorer-bradbury.genlayer.com/address/0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C)
+- 📜 **Deployed Intelligent Contract**: [`0x08909F12f0a008d09de35c5432b2cD67E0898972`](https://explorer-bradbury.genlayer.com/address/0x08909F12f0a008d09de35c5432b2cD67E0898972)
 - ⛓️ **Network**: GenLayer Bradbury Testnet (Chain ID: `4221` / `0x107d`)
 - 🔍 **Block Explorer**: [https://explorer-bradbury.genlayer.com](https://explorer-bradbury.genlayer.com)
 
@@ -143,8 +143,9 @@ The contract is written in Python for the **GenVM v0.3.3** runtime:
 | Parameter | Value |
 | :--- | :--- |
 | **Live Web App** | [https://agenticescrow.vercel.app](https://agenticescrow.vercel.app) |
-| **Intelligent Contract Address** | [`0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C`](https://explorer-bradbury.genlayer.com/address/0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C) |
-| **Deployment Transaction** | [`0xd97dbfedb5195538ab02e4f017831607d36fe3fb5c113a216472f9e5782c22bc`](https://explorer-bradbury.genlayer.com/tx/0xd97dbfedb5195538ab02e4f017831607d36fe3fb5c113a216472f9e5782c22bc) |
+| **Intelligent Contract Address** | [`0x08909F12f0a008d09de35c5432b2cD67E0898972`](https://explorer-bradbury.genlayer.com/address/0x08909F12f0a008d09de35c5432b2cD67E0898972) |
+| **Deployment Transaction** | [`0x05eea30a074644de7acd52b2a07b9d87bf0c7daeb7de95724d1398979bdd74e6`](https://explorer-bradbury.genlayer.com/tx/0x05eea30a074644de7acd52b2a07b9d87bf0c7daeb7de95724d1398979bdd74e6) |
+| **Verified Native Withdrawal Tx** | [`0x8079856af9622b9bbac884308b1de13271b1136f7838a10aa3537cb5e9baf046`](https://explorer-bradbury.genlayer.com/tx/0x8079856af9622b9bbac884308b1de13271b1136f7838a10aa3537cb5e9baf046) |
 | **Network Name** | GenLayer Bradbury Testnet |
 | **Chain ID** | 4221 (0x107d) |
 | **RPC Endpoint** | https://rpc-bradbury.genlayer.com |
@@ -170,18 +171,32 @@ In compliance with GenLayer trustless smart contract guidelines:
 - **Fail-Closed AI Arbitration**: The dispute resolution validator function (`validator_fn`) independently executes the LLM prompt and asserts strict decision equivalence (`lead_decision == val_decision`). Any validator disagreement or runtime exception immediately fails closed (`return False`), eliminating format-only validation risks.
 - **Strict Conservation of Funds**: Native value must equal or exceed deposit amounts upon creation (`gl.message.value >= amount`), and `reopen_task` verifies unwithdrawn buyer claimable balance (`cur_buyer_bal >= amount`).
 
+- **Documented EVM-Interface Native Payout**: In accordance with GenLayer value transfer specifications, transferring native GEN to an Externally Owned Account (EOA) utilizes the documented EVM contract interface external call form (`_Recipient(beneficiary).emit_transfer(value=balance)`), verified and confirmed on-chain in transaction `0x8079856af9622b9bbac884308b1de13271b1136f7838a10aa3537cb5e9baf046`.
+
 ---
 
-## Automated Security & Regression Test Suite
+## Clean Checkout Reproduction & Testing Guide
 
-The repository includes comprehensive on-chain test suites under the `tests/` directory:
+The repository is structured for clean, one-command reproducibility from any fresh checkout.
+
+### Quick Start (Clean Checkout)
 
 ```bash
-# Run comprehensive security regression tests (Authorization, Conservation, Fail-closed validators, Key rotation)
-node tests/test_regression_suite.js
+# 1. Clone repository
+git clone https://github.com/sinascorpion/genlayer-agentic-escrow.git
+cd genlayer-agentic-escrow
 
-# Run full end-to-end escrow lifecycle test (Deposit, Apply, Assign, Submit, Approve, Native emit_transfer Payout)
-node tests/test_lifecycle.js
+# 2. Install dependencies across root & frontend
+npm run install:all
+
+# 3. Setup environment configuration (optional for automated regression tests)
+cp .env.example .env
+
+# 4. Run full security & regression test suite (8/8 tests)
+npm test
+
+# 5. Build frontend application
+npm run build
 ```
 
 ### Verified Test Cases (8/8 Passed On-Chain):
@@ -200,20 +215,12 @@ node tests/test_lifecycle.js
 
 ### Prerequisites
 - Node.js 18+ or 20+
-- Python 3.10+\n- GenLayer CLI (npm install -g genlayer)
+- Python 3.10+ (for contracts and deployment scripts)
 
-### Step-by-Step Installation
+### Running Local Development Server
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/sinascorpion/genlayer-agentic-escrow.git
-cd genlayer-agentic-escrow
- 
-# 2. Enter frontend directory and install dependencies
 cd frontend
-npm install
- 
-# 3. Start local development server (Port 2052)
 npm run dev -- -p 2052
 ```
 
