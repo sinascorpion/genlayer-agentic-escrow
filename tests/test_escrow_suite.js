@@ -8,7 +8,7 @@ const acc1 = createAccount(lines[0]);
 const acc2 = createAccount(lines[1]);
 const client1 = createClient({ chain: testnetBradbury, account: acc1 });
 const client2 = createClient({ chain: testnetBradbury, account: acc2 });
-const contractAddr = '0xC03Ec11EFaBd787D3Dcbc6ce568259C30Dab030C';
+const contractAddr = '0x08909F12f0a008d09de35c5432b2cD67E0898972';
 
 function toCalldataAddress(hexStr) {
   const clean = hexStr.startsWith('0x') ? hexStr.slice(2) : hexStr;
