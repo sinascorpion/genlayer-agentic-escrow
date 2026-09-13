@@ -233,10 +233,15 @@ async function runRegressionTests() {
       throw new Error('SECURITY VIOLATION: Contract still contains sender == self.owner bypasses!');
     }
 
-    // Verify relayer key is removed from frontend
-    const envLocal = fs.readFileSync('frontend/.env.local', 'utf8');
-    if (envLocal.includes('GENLAYER_RELAYER_KEY')) {
-      throw new Error('SECURITY VIOLATION: Relayer key still present in .env.local!');
+    // Verify relayer key is absent from frontend environment
+    const frontendEnvFiles = ['frontend/.env.local', 'frontend/.env.example', 'frontend/.env'];
+    for (const f of frontendEnvFiles) {
+      if (fs.existsSync(f)) {
+        const envContent = fs.readFileSync(f, 'utf8');
+        if (envContent.includes('GENLAYER_RELAYER_KEY') || envContent.includes('RELAYER_PRIVATE_KEY')) {
+          throw new Error(`SECURITY VIOLATION: Relayer key still present in ${f}!`);
+        }
+      }
     }
 
     console.log('PASSED: Server relayer key completely rotated and revoked from repository & environment.');

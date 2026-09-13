@@ -186,13 +186,13 @@ The repository is structured for clean, one-command reproducibility from any fre
 git clone https://github.com/sinascorpion/genlayer-agentic-escrow.git
 cd genlayer-agentic-escrow
 
-# 2. Install dependencies across root & frontend
-npm run install:all
+# 2. Install all dependencies (root & frontend workspaces automatically installed via npm install)
+npm install
 
-# 3. Setup environment configuration (optional for automated regression tests)
+# 3. Setup environment configuration (optional - fallback accounts included for test suite)
 cp .env.example .env
 
-# 4. Run full security & regression test suite (8/8 tests)
+# 4. Run full security & regression test suite (8/8 tests pass on-chain)
 npm test
 
 # 5. Build frontend application
